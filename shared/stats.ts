@@ -10,7 +10,7 @@ export type Stats = Record<StatKey, number>;
 export const STATS: { key: StatKey; label: string; short: string; help: string }[] = [
   { key: "strength", label: "Strength", short: "STR", help: "Affects attack" },
   { key: "agility", label: "Agility", short: "AGI", help: "Affects attack, defense and movement speed" },
-  { key: "intelligence", label: "Intelligence", short: "INT", help: "Will matter later for magic" },
+  { key: "intelligence", label: "Intelligence", short: "INT", help: "Affects magic damage" },
   { key: "charm", label: "Charm", short: "CHA", help: "Will matter later" },
   { key: "endurance", label: "Endurance", short: "END", help: "Affects health, stamina (fatigue) and how fast you recover" },
   { key: "luck", label: "Luck", short: "LCK", help: "Lucky hits and lucky blocks happen more often" },
@@ -45,6 +45,7 @@ export function creationProblem(stats: unknown): string | null {
 export const BASE_HP = 20;
 export const HP_PER_ENDURANCE = 5;
 export const UNARMED_ATTACK = 1;
+// Intelligence powers spells: a fireball deals 2 + Intelligence before armor (shared/magic.ts)
 
 /** Combat values of an item (missing = 0). */
 export interface CombatItem {

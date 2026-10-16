@@ -1,7 +1,7 @@
 // The HUD: inventory window (I), outfit window (O) and the hotbar at the bottom, all HTML on top
 // of the game canvas. Equipment rules come from shared/equipment.ts; the server has the final say.
 import { ITEM_TYPES, type ItemView } from "../../../shared/items";
-import { onLanguageChange, t, tItem, tSlot, tType } from "../i18n";
+import { onLanguageChange, t, tItem, tSlot, tType, type TKey } from "../i18n";
 import {
   autoSlot,
   HOTBAR_SLOTS,
@@ -17,6 +17,7 @@ import { createSlot, endDrag, fillSlot, refuse, startDrag, type SlotHandlers } f
 import { StatsView } from "./statsWindow";
 import { derive, maxFatigue, type Stats } from "../../../shared/stats";
 import { HUNGER_MAX } from "../../../shared/survival";
+import { SPELL_SLOTS, SPELLS, type SpellId, type SpellSlot } from "../../../shared/magic";
 
 /** An owned item as the HUD sees it: the instance combined with its definition (shared/items.ts). */
 export type HudItem = ItemView;
@@ -29,6 +30,13 @@ export interface HudCharacter {
   hunger: number;
 }
 
+/** A spell charged on the magic scroll, waiting in a spell slot (from the server). */
+export interface HudSpell {
+  slot: SpellSlot;
+  spell: SpellId;
+  secondsLeft: number;
+}
+
 export interface HudOptions {
   /** Put an item into a slot (moves/swaps are handled by the server with the shared rules). */
   onEquip(slotId: string, itemId: string): void;
@@ -38,6 +46,8 @@ export interface HudOptions {
   onUse(item: HudItem): void;
   /** Turns game keyboard controls off while the player is typing in the filter box. */
   setGameInput(enabled: boolean): void;
+  /** A spell slot's key (X, C, V, B) was pressed or the slot clicked: aim / use its spell. */
+  onSpell(slot: SpellSlot): void;
 }
 
 type SortKey = "name" | "type";
@@ -66,6 +76,9 @@ export class Hud {
   private hotbar: HTMLDivElement;
   private vitals: HTMLDivElement;
   private hotSlots: HTMLDivElement[] = [];
+  private spellBar: HTMLDivElement;
+  private spells: HudSpell[] = [];
+  private aiming: SpellSlot | null = null;
 
   constructor(private opts: HudOptions) {
     // ---------- inventory window ----------
@@ -133,6 +146,8 @@ export class Hud {
 
     // ---------- hotbar: hands (1, 2) + belt pockets (3+) ----------
     this.hotbar = el("div", { id: "hotbar" });
+    // Spell slots (X, C, V, B): only the charged ones show, to the right of the items
+    this.spellBar = el("div", { id: "spellbar" });
     // HP and fatigue, always visible just above the hotbar
     this.vitals = el("div", { id: "vitals" });
     this.vitals.innerHTML = `
@@ -141,12 +156,14 @@ export class Hud {
         <span class="vital-fill"></span><span class="vital-text"></span></div>
       <div class="vital hunger"><span class="vital-fill"></span><span class="vital-text"></span></div>`;
     document.body.append(this.vitals, this.hotbar);
+    this.hotbar.append(this.spellBar);
 
     // ---------- keyboard ----------
     //   1..N        select hotbar slot N
     //   Shift+1..N  put the item picked in the inventory into hotbar slot N
     //   Shift+E     wear the picked item in its matching outfit slot
-    //   F           use the item in the selected hotbar slot (eat food)
+    //   E           use the item in the selected hotbar slot (eat food)
+    //   X C V B     use the spell in that spell slot (F itself opens the magic scroll: src/ui/scroll.ts)
     // e.code is the physical key, so this works on any keyboard layout.
     window.addEventListener("keydown", (e) => {
       if (e.target instanceof HTMLInputElement) return; // typing in the filter
@@ -154,7 +171,12 @@ export class Hud {
         this.autoEquipPicked();
         return;
       }
-      if (e.code === "KeyF" && !e.shiftKey && !e.ctrlKey && !e.altKey) {
+      const spellKey = /^Key([XCVB])$/.exec(e.code)?.[1] as SpellSlot | undefined;
+      if (spellKey && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        this.opts.onSpell(spellKey);
+        return;
+      }
+      if (e.code === "KeyE" && !e.shiftKey && !e.ctrlKey && !e.altKey) {
         const itemId = this.equipment[this.hotSlots[this.selectedHot]?.dataset.slot ?? ""];
         const item = this.items.find((it) => it.id === itemId);
         if (item) this.opts.onUse(item);
@@ -200,6 +222,19 @@ export class Hud {
     this.equipment = equipment;
     if (this.pickedItemId && !this.pickedItem()) this.pickedItemId = null;
     this.renderAll();
+  }
+
+  /** The charged spells (from the server); the countdown in them changes once a second. */
+  setSpells(spells: HudSpell[]) {
+    if (JSON.stringify(spells) === JSON.stringify(this.spells)) return;
+    this.spells = spells;
+    this.renderSpells();
+  }
+
+  /** Highlights the spell slot being aimed (null: none). */
+  setAiming(slot: SpellSlot | null) {
+    this.aiming = slot;
+    this.renderSpells();
   }
 
   // ---------------- actions ----------------
@@ -255,6 +290,7 @@ export class Hud {
   private renderAll() {
     this.renderList();
     this.renderHotbar();
+    this.renderSpells();
     this.outfit.render(this.equipment, this.items);
     this.renderStats();
   }
@@ -282,7 +318,7 @@ export class Hud {
         if (s.beltIndex !== undefined) slot.classList.add("pocket");
         return slot;
       });
-      this.hotbar.replaceChildren(...this.hotSlots);
+      this.hotbar.replaceChildren(...this.hotSlots, this.spellBar);
     }
     this.selectedHot = Math.min(this.selectedHot, this.hotSlots.length - 1);
     this.hotSlots.forEach((slot, i) => {
@@ -290,6 +326,25 @@ export class Hud {
       fillSlot(slot, item, t("slot.empty"));
       slot.classList.toggle("selected", i === this.selectedHot);
     });
+  }
+
+  private renderSpells() {
+    const charged = SPELL_SLOTS.map((slot) => this.spells.find((s) => s.slot === slot)).filter((s): s is HudSpell => !!s);
+    this.spellBar.hidden = !charged.length;
+    this.spellBar.replaceChildren(
+      ...charged.map((s) => {
+        const name = t(`spell.${s.spell}` as TKey);
+        const slot = el("div", { className: "slot spell", title: t("slot.spell", { spell: name, key: s.slot, n: s.secondsLeft }) });
+        slot.innerHTML = `<span class="slot-key"></span><span class="slot-icon"></span><span class="slot-label"></span>`;
+        (slot.querySelector(".slot-key") as HTMLElement).textContent = s.slot;
+        (slot.querySelector(".slot-icon") as HTMLElement).textContent = SPELLS[s.spell]?.icon ?? "✨";
+        (slot.querySelector(".slot-label") as HTMLElement).textContent = `${s.secondsLeft}s`;
+        slot.classList.toggle("fading", s.secondsLeft <= 10);
+        slot.classList.toggle("selected", s.slot === this.aiming);
+        slot.onclick = () => this.opts.onSpell(s.slot);
+        return slot;
+      })
+    );
   }
 
   private renderList() {

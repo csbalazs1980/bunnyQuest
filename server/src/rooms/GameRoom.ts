@@ -1,5 +1,5 @@
 import { Client, Room } from "colyseus";
-import { Enemy, GameState, Item, Player } from "./schema/GameState.js";
+import { ChargedSpell, Enemy, GameState, Item, Player } from "./schema/GameState.js";
 import { Rats } from "../rats.js";
 import { Crusaders } from "../crusaders.js";
 import { creationProblem, damage, derive, fatigueRegenMs, maxFatigue, maxHp, moveSpeed, STATS, type Stats } from "../../../shared/stats.js";
@@ -29,6 +29,20 @@ import { heldAndWorn, normalize, place, remove, type Equipment, type EquipItem }
 import { CHAT_COOLDOWN_MS, cleanChat } from "../../../shared/chat.js";
 import { HUNGER_AFTER_RESPAWN, HUNGER_DECAY_MS, HUNGER_MAX, HUNGER_START, hpPerSecond } from "../../../shared/survival.js";
 import { RAT } from "../../../shared/enemies.js";
+import { readRunes, unpackStrokes } from "../../../shared/runes.js";
+import {
+  CAST_COOLDOWN_MS,
+  fireballFlightMs,
+  fireballPower,
+  inBlast,
+  inFireballRange,
+  SPELL_CHARGE_MS,
+  SPELL_SLOTS,
+  spellOf,
+  STARTER_RUNES,
+  type CastFail,
+  type SpellSlot,
+} from "../../../shared/magic.js";
 import mapJson from "../../../shared/map.json" with { type: "json" };
 
 const TICK_RATE = 20; // server simulation ticks per second
@@ -155,6 +169,27 @@ export class GameRoom extends Room<GameState> {
       this.broadcast("fx", fx, { except: client });
     });
 
+    // Magic (shared/magic.ts, shared/runes.ts): holding F opens the scroll (the bunny stands still and
+    // its eyes glow for everyone); letting go sends the drawing, which is read here so nobody can cheat.
+    this.onMessage("scroll", (client, msg: { open: boolean }) => {
+      const p = this.state.players.get(client.sessionId);
+      if (p) p.casting = !!msg?.open && !p.deadUntil;
+    });
+    this.onMessage("cast", (client, msg: { strokes: unknown }) => this.readScroll(client, msg?.strokes));
+    // Use a charged spell: for now only the fireball, thrown at a tile
+    this.onMessage("spell", (client, msg: { slot: string; tx: number; ty: number }) => {
+      const p = this.state.players.get(client.sessionId);
+      const now = Date.now();
+      if (!p || p.deadUntil || p.protectedUntil > now) return; // knocked out / just woke up: no attacking
+      const charged = typeof msg?.slot === "string" ? p.spells.get(msg.slot) : undefined;
+      const { tx, ty } = msg ?? {};
+      if (!charged || !Number.isInteger(tx) || !Number.isInteger(ty)) return;
+      if (tx < 0 || ty < 0 || tx >= world.map.rows[0].length || ty >= world.map.rows.length) return;
+      if (!inFireballRange(p.x, p.y, tx, ty)) return; // (the client checks this too, with the same rule)
+      p.spells.delete(msg.slot); // one charge, one cast
+      if (charged.spell === "fireball") this.throwFireball(client.sessionId, p, tx, ty);
+    });
+
     // Server is authoritative: it moves everyone based on their latest input.
     this.setSimulationInterval((dt) => this.update(dt / 1000), 1000 / TICK_RATE);
     this.setPatchRate(1000 / TICK_RATE);
@@ -186,6 +221,7 @@ export class GameRoom extends Room<GameState> {
       item.quantity = quantity;
       p.inventory.push(item);
     }
+    for (const rune of STARTER_RUNES) p.runes.push(rune);
     for (const [slot, defId] of Object.entries(STARTER_EQUIPMENT)) {
       const item = p.inventory.find((it) => it.defId === defId);
       if (item) p.equipment.set(slot, item.id);
@@ -202,6 +238,89 @@ export class GameRoom extends Room<GameState> {
   onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
     this.inputs.delete(client.sessionId);
+  }
+
+  /**
+   * Reads a drawing from the magic scroll. If it spells something the bunny knows, the spell goes into
+   * the first free spell slot (X, C, V, B; all full: the one that would fade first is replaced).
+   * The caster gets the reading back either way, so the scroll can show which runes it saw.
+   */
+  private readScroll(client: Client, raw: unknown) {
+    const p = this.state.players.get(client.sessionId);
+    if (!p) return;
+    p.casting = false;
+    const now = Date.now();
+    const reply = (fail: CastFail | null, guesses: ReturnType<typeof readRunes> = [], spell?: string, slot?: string) =>
+      client.send("castResult", {
+        fail,
+        spell,
+        slot,
+        runes: guesses.map((g) => ({ rune: g.rune, top: g.top, bottom: g.bottom })),
+      });
+    if (p.deadUntil || now - p.lastCastAt < CAST_COOLDOWN_MS) return reply("busy");
+    p.lastCastAt = now;
+    const strokes = unpackStrokes(raw);
+    if (!strokes) return reply("unreadable");
+    const guesses = readRunes(strokes);
+    if (!guesses.length) return reply("empty", guesses);
+    if (guesses.some((g) => !g.rune)) return reply("unreadable", guesses);
+    if (guesses.some((g) => !p.runes.includes(g.rune!))) return reply("unknownRune", guesses);
+    const spell = spellOf(guesses.map((g) => g.rune));
+    if (!spell) return reply("noSpell", guesses);
+
+    let slot: SpellSlot | undefined = SPELL_SLOTS.find((s) => !p.spells.has(s));
+    if (!slot) {
+      // All four are charged: replace the one closest to fading away
+      slot = SPELL_SLOTS.reduce((a, b) => (p.spells.get(a)!.until <= p.spells.get(b)!.until ? a : b));
+    }
+    const charged = new ChargedSpell();
+    charged.spell = spell;
+    charged.until = now + SPELL_CHARGE_MS;
+    charged.secondsLeft = Math.ceil(SPELL_CHARGE_MS / 1000);
+    p.spells.set(slot, charged);
+    reply(null, guesses, spell, slot);
+  }
+
+  /**
+   * A fireball flies to tile (tx, ty) and explodes there and on the 8 tiles around it. Everyone sees it
+   * fly; the damage (2 + the caster's Intelligence, minus each target's armor; it can't be blocked)
+   * happens when it lands. The caster is never hurt by their own fireball.
+   */
+  private throwFireball(casterId: string, p: Player, tx: number, ty: number) {
+    const ms = fireballFlightMs(p.x, p.y, tx, ty);
+    this.broadcast("fx", { kind: "fireball", id: casterId, x: Math.round(p.x), y: Math.round(p.y), tx, ty, ms } satisfies CombatFx);
+    const power = fireballPower(p.stats.intelligence); // the caster's Intelligence when casting counts
+    this.clock.setTimeout(() => {
+      const now = Date.now();
+      this.state.players.forEach((target, targetId) => {
+        if (targetId === casterId || !this.state.friendlyFire) return; // friendly fire off: bunnies are safe
+        if (target.deadUntil || target.protectedUntil > now || !inBlast(target.x, target.y, tx, ty)) return;
+        const dmg = damage(power, 0, combatOf(target).armor, false);
+        this.broadcast("fx", { kind: "hit", id: targetId, by: casterId, bleed: DAMAGE_ENABLED && dmg > 0 } satisfies CombatFx);
+        this.applyDamage(target, targetId, dmg);
+      });
+      this.state.enemies.forEach((e, id) => {
+        if (!inBlast(e.fx, e.fy, tx, ty)) return;
+        const dmg = damage(power, 0, 0, false); // enemies wear no armor
+        this.broadcast("fx", { kind: "hit", id, by: casterId, bleed: DAMAGE_ENABLED && dmg > 0 } satisfies CombatFx);
+        if (!DAMAGE_ENABLED) return;
+        const died = e.kind === "rat" ? this.rats.hurt(id, dmg) : this.crusaders.hurt(id, dmg, now);
+        if (died) this.broadcast("fx", { kind: "death", id } satisfies CombatFx);
+      });
+    }, ms);
+  }
+
+  /** Charged spells fade away after SPELL_CHARGE_MS; the synced whole seconds only change once a second. */
+  private updateSpells(p: Player, now: number) {
+    const gone: string[] = [];
+    p.spells.forEach((c, slot) => {
+      if (now >= c.until) gone.push(slot);
+      else {
+        const s = Math.ceil((c.until - now) / 1000);
+        if (c.secondsLeft !== s) c.secondsLeft = s;
+      }
+    });
+    gone.forEach((slot) => p.spells.delete(slot));
   }
 
   /**
@@ -257,6 +376,8 @@ export class GameRoom extends Room<GameState> {
     p.blockUntil = 0;
     p.moving = false;
     p.hpChange = 0;
+    p.casting = false; // the scroll drops...
+    p.spells.clear(); // ...and charged spells fade
     this.broadcast("fx", { kind: "death", id } satisfies CombatFx);
   }
 
@@ -322,6 +443,7 @@ export class GameRoom extends Room<GameState> {
     this.crusaders.update(dt, now, this.state.players, bodies);
     this.state.players.forEach((p, id) => {
       this.updateLife(p, id, now);
+      this.updateSpells(p, now);
       if (p.deadUntil) return; // knocked out: no regeneration, no hunger, no moving
 
       // Fatigue regenerates 1 point every fatigueRegenEveryMs (faster with more Endurance)
@@ -337,7 +459,7 @@ export class GameRoom extends Room<GameState> {
       this.updateHunger(p, id, dt);
 
       const input = this.inputs.get(id);
-      if (!input) return;
+      if (!input || p.casting) return void (p.moving = false); // drawing on the magic scroll: standing still
       const dx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
       const dy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
       p.moving = dx !== 0 || dy !== 0;

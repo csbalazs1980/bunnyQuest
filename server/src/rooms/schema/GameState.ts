@@ -10,6 +10,14 @@ export class Item extends Schema {
   @type("number") quantity = 1;
 }
 
+/** A spell charged by drawing its runes on the magic scroll, waiting in a hotbar spell slot (shared/magic.ts). */
+export class ChargedSpell extends Schema {
+  @type("string") spell = "fireball";
+  @type("number") secondsLeft = 0; // whole seconds until it fades away unused
+
+  until = 0; // server only: when it fades away
+}
+
 /** The six base stats chosen at character creation (1-10 each, see shared/stats.ts). */
 export class Stats extends Schema {
   @type("number") strength = 1;
@@ -39,6 +47,9 @@ export class Player extends Schema {
   @type("number") hunger = 50; // 0-50, 50 = full (shared/survival.ts)
   @type("number") respawnIn = 0; // knocked out: whole seconds until waking up (0 = alive)
   @type("number") protectedFor = 0; // just woke up: whole seconds of protection left (can't hurt / be hurt)
+  @type("boolean") casting = false; // the magic scroll is open: everyone sees the eyes glow red
+  @type(["string"]) runes = new ArraySchema<string>(); // runes this bunny knows (shared/runes.ts)
+  @type({ map: ChargedSpell }) spells = new MapSchema<ChargedSpell>(); // spell slot ("X", "C", "V", "B") -> charged spell
 
   // Server-only combat bookkeeping (no @type, so not sent to clients)
   lastAttackAt = 0;
@@ -52,6 +63,7 @@ export class Player extends Schema {
   lastChatAt = 0;
   deadUntil = 0; // knocked out until this time (0 = alive)
   protectedUntil = 0; // can't be hurt and can't attack until this time
+  lastCastAt = 0; // last time a scroll was read (rate limit)
 }
 
 /** An enemy: "rat", or a crusader ("king" / "knight"), see shared/enemies.ts. Positions are whole pixels to keep updates small. */

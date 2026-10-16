@@ -88,9 +88,9 @@ Strength, Agility, Intelligence, Charm, Endurance, Luck. The game can only start
 
 Example: attack 8 against defense 5 and armor 2 → 1 damage if blocked, 6 if not.
 The weapon values come from what is in your hands (the best attack and the best defense of the two hands;
-empty hands attack with 1). The Sword is 5 attack / 4 defense. Intelligence, Charm and Luck do nothing yet.
+empty hands attack with 1). The Sword is 5 attack / 4 defense. Intelligence powers magic (see **Magic** below); Charm does nothing yet.
 
-The **Stats** window (hotkey **C**, starts minimized) shows your stats, HP, fatigue, speed and the current
+The **Stats** window (hotkey **K**, starts minimized) shows your stats, HP, fatigue, speed and the current
 Attack / Defense / Armor, which change as you equip things. Players only see plain summaries of what each
 stat affects (e.g. "Affects attack, defense and movement speed"); the exact math below stays in the code.
 
@@ -103,7 +103,7 @@ Actually fighting other bunnies is not in the game yet.
   bunny for 0.5 s. The attack reaches **1 tile** (64 px): the burst appears where you clicked if that is
   within a tile, otherwise one tile away in that direction. At most **3 attacks per second**.
 - **Right-click** on the map: use what is in **hand 2** (hotbar slot 2) toward the pointer. A weapon attacks
-  (like a click), anything else with defense (a shield) blocks (like Shift+click), food is eaten (like F);
+  (like a click), anything else with defense (a shield) blocks (like Shift+click), food is eaten (like E);
   other items say "Nothing happens…", an empty hand says so. The browser's right-click menu is turned off
   on the map (it still works everywhere else). Code: `useHand2()` in `client/src/scenes/GameScene.ts`.
 - **Shift+click**: block toward the pointer. A small shield shows on that side for **1 s** (blocking lasts
@@ -186,10 +186,54 @@ green, the missing part dark red. New bunnies start full.
   | HP | +1 every 5 s | +1 every 10 s | no change | −1 every 30 s | −1 every 15 s |
 
 - Starving to 0 HP knocks you out like a beating (hunger is topped up to at least 20 when you wake up).
-- **Eating:** right-click food in the inventory, or put it on the hotbar and press **F** (uses the selected
+- **Eating:** right-click food in the inventory, or put it on the hotbar and press **E** (uses the selected
   hotbar slot). Eating when full is refused ("Not hungry!"). Every bunny starts with **10 carrots**
   (each restores 15 hunger). Food items have a `food` value in `ITEM_DEFS`.
 - Rules and numbers: `shared/survival.ts`. A full bunny without food reaches 0 hunger in 25 minutes.
+
+## Magic
+A rune-drawing system in the spirit of Arx Fatalis: you draw a spell's runes, and if they look right, you get the spell.
+
+1. **Hold F**: a big magic scroll opens, for you only. Everyone else just sees your bunny's eyes glow red and
+   sparkle. You stand still while it is open (and clicks go to the scroll, not into the world).
+2. **Draw the runes with the mouse, top to bottom.** Only the order from top to bottom matters, not where
+   they are from left to right. A rune can have several lines; leave a little vertical gap between runes.
+   Right-click wipes the scroll.
+3. **Let go of F.** The server reads the drawing (so it can't be cheated) and the scroll shows for a moment
+   which rune it saw where ("?" = unreadable), plus the outcome.
+4. A spell that works goes into the first free **spell slot** on the hotbar: **X**, then **C**, **V**, **B**.
+   It waits there for **1 minute** (the countdown is in the slot; it blinks in the last 10 s), then fades.
+   Each charge is used once. All four full: the new spell replaces the one closest to fading.
+   Getting knocked out drops the scroll and every charged spell.
+
+**Fireball** = **Ka** (create, a hook) + **Ash** (fire, a long "\\" with two short strokes) + **Dom** (burst, a dome).
+Press its slot key: a 3×3 target follows the mouse (red when out of reach, max **8 tiles**); click to throw,
+right-click / Esc / the same key again cancels. It flies there in an arc and explodes on the tile and the 8
+around it. Damage = **2 + Intelligence − armor** (never below 0), for every bunny (if friendly fire is on),
+rat and crusader standing there. It can't be blocked, and the caster is never hurt by their own fireball.
+Just-respawned (protected) bunnies can charge spells but can't throw them yet, like attacking.
+
+The **Spellbook** window (**P**, starts minimized) shows the spells with their runes in order and every rune
+you know. For now every bunny starts knowing Ka, Ash and Dom (`STARTER_RUNES`).
+
+**How a drawing is read** (`shared/runes.ts`): tiny strokes are dropped; strokes whose heights overlap are
+grouped into one rune, and the groups are ordered top to bottom; each group is matched against every rune
+with the [$P point-cloud recognizer](https://depts.washington.edu/acelab/proj/dollar/pdollar.html) (32 points,
+size and position don't matter, stroke order and direction don't matter, orientation does), plus a penalty
+when a sharp corner or a closed loop is missing or extra (that is what keeps the Ka hook and the Dom arc apart).
+The closest rune wins if it is within `RUNE_TOLERANCE` and the stroke count fits (the model's count up to 2
+more). Raise `RUNE_TOLERANCE` to be more forgiving. In a test with thousands of randomly distorted drawings
+(wobbly, stretched, rotated, sloppily placed), about 98% of reasonable ones were read right, and plain lines,
+circles, squares, zigzags and the like were rejected.
+
+Adding things:
+- **A rune:** add its model strokes to `RUNE_SHAPES` (any coordinates, only the shape counts) and its name /
+  meaning to the translation files (`rune.<id>`, `rune.<id>.meaning`). Keep runes visually distinct.
+- **A spell:** add it to `SPELLS` in `shared/magic.ts` (its runes and icon), its texts (`spell.<id>`,
+  `spell.<id>.desc`), and what it does in `GameRoom` (the `spell` message, like `throwFireball`).
+- Numbers: `SPELL_CHARGE_MS`, `FIREBALL` (damage, radius, range, speed) in `shared/magic.ts`.
+- Code: scroll `client/src/ui/scroll.ts`, spellbook `client/src/ui/spellbook.ts`, glowing eyes / fireball /
+  target `client/src/magicFx.ts`, spell slots in `client/src/ui/hud.ts`, aiming in `GameScene`.
 
 ## The map
 400×400 tiles, 64×64 pixels each (25,600×25,600 px world), stored in `shared/map.json`.

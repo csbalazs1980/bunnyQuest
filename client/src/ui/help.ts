@@ -7,7 +7,7 @@
 //   (blank line)      starts a new paragraph
 import { onLanguageChange, t, type TKey } from "../i18n";
 
-const TOPICS = ["controls", "combat", "stats"] as const;
+const TOPICS = ["controls", "combat", "magic", "stats"] as const;
 type Topic = (typeof TOPICS)[number];
 const STORAGE_KEY = "bq-help-topic";
 

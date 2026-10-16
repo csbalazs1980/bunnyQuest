@@ -6,6 +6,8 @@ import { tileVariants, variantAt } from "../tiles";
 import { FxLayer } from "../fx";
 import { BubbleLayer } from "../bubbles";
 import { BloodLayer } from "../blood";
+import { MagicFx } from "../magicFx";
+import { tileCenter, type SpellSlot } from "../../../shared/magic";
 import { enemyMaxHp } from "../../../shared/enemies";
 import { itemView, type ItemView } from "../../../shared/items";
 import { t, type TKey } from "../i18n";
@@ -34,6 +36,7 @@ interface BunnyView {
   blink?: Phaser.Tweens.Tween; // spawn protection: the bunny blinks
   state: any; // the synced Player (hp, maxHp, ...)
   drip: Drip;
+  casting: boolean; // the magic scroll is open: glowing eyes
 }
 
 /** Where a wounded character last dripped blood (see BloodLayer.drips). */
@@ -76,6 +79,14 @@ export class GameScene extends Phaser.Scene {
   private attackSeq = 0; // numbers our attacks so the server's luck result finds the right burst
   /** Our own knock-out / protection message in the middle of the screen (a DOM element). */
   private banner = document.createElement("div");
+  private magic!: MagicFx;
+  /** Our magic scroll is open: our bunny stands still (src/ui/scroll.ts). */
+  private drawing = false;
+  /** The spell slot we are aiming with (a target follows the pointer), if any. */
+  private aiming: SpellSlot | null = null;
+  private aimHint = document.createElement("div");
+  /** Tells the HUD which spell slot is being aimed (to highlight it). */
+  onAimChange?: (slot: SpellSlot | null) => void;
 
   constructor(private room: Room) {
     super("game");
@@ -95,7 +106,13 @@ export class GameScene extends Phaser.Scene {
     this.banner.id = "life-banner";
     this.banner.hidden = true;
     document.body.append(this.banner);
-    this.events.once("destroy", () => this.banner.remove());
+    this.aimHint.id = "aim-hint";
+    this.aimHint.hidden = true;
+    document.body.append(this.aimHint);
+    this.events.once("destroy", () => {
+      this.banner.remove();
+      this.aimHint.remove();
+    });
     this.createMap();
 
     // enableCapture = false: let letters still reach the inventory filter box when it has focus
@@ -104,12 +121,22 @@ export class GameScene extends Phaser.Scene {
     this.fx = new FxLayer(this);
     this.bubbles = new BubbleLayer(this);
     this.blood = new BloodLayer(this);
+    this.magic = new MagicFx(this);
     // Other players' chat messages (our own are shown right away by chat())
     this.room.onMessage("chat", (m: { id: string; text: string }) => {
       const view = this.bunnies.get(m.id);
       if (view) this.bubbles.say(view.sprite, m.text);
     });
     this.setupCombat();
+    // Esc cancels aiming (capture phase, so it doesn't also open the Options)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && this.aiming) {
+        e.stopPropagation();
+        this.stopAim();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    this.events.once("destroy", () => window.removeEventListener("keydown", onKey, true));
 
     this.cameras.main.setBounds(0, 0, world.pixelWidth, world.pixelHeight);
     this.cameras.main.setRoundPixels(true);
@@ -136,6 +163,7 @@ export class GameScene extends Phaser.Scene {
         life: { state: "alive", seconds: 0 },
         state: player,
         drip: { x: player.x, y: player.y },
+        casting: false,
       };
       this.bunnies.set(sessionId, view);
       this.setLife(view, lifeOf(player));
@@ -150,6 +178,10 @@ export class GameScene extends Phaser.Scene {
         }
         if (sessionId !== this.room.sessionId && view.life.state !== "out") sprite.setFlipX(player.facing === "left");
         this.setLife(view, lifeOf(player));
+        if (!!player.casting !== view.casting) {
+          view.casting = !!player.casting;
+          this.magic.setCasting(sprite, view.casting); // red, sparkling eyes for everyone
+        }
       });
 
       if (sessionId === this.room.sessionId) {
@@ -191,6 +223,7 @@ export class GameScene extends Phaser.Scene {
     $(this.room.state).players.onRemove((_player: any, sessionId: string) => {
       const view = this.bunnies.get(sessionId);
       if (view) this.bubbles.clear(view.sprite);
+      if (view) this.magic.setCasting(view.sprite, false);
       view?.blink?.remove();
       view?.countdown?.destroy();
       view?.sprite.destroy();
@@ -210,6 +243,7 @@ export class GameScene extends Phaser.Scene {
       if (!right && !pointer.leftButtonDown()) return;
       const me = this.bunnies.get(this.room.sessionId);
       if (!me || me.life.state === "out") return; // knocked out: can't do anything
+      if (this.aiming) return this.throwSpell(me, pointer, right);
       const dx = pointer.worldX - me.sprite.x;
       const dy = pointer.worldY - me.sprite.y;
       const angle = Math.atan2(dy, dx);
@@ -268,6 +302,14 @@ export class GameScene extends Phaser.Scene {
           }
           break;
         }
+        case "fireball": {
+          // Start from where we see the caster (the server's position may be a few pixels behind)
+          const from = this.bunnies.get(m.id)?.sprite ?? { x: m.x, y: m.y };
+          const to = tileCenter(m.tx, m.ty);
+          if (to.x !== from.x) sprite.setFlipX(to.x < from.x); // face the throw
+          this.magic.fireball(from.x, from.y, m.tx, m.ty, m.ms);
+          break;
+        }
         case "respawn": {
           const view = this.bunnies.get(m.id);
           if (view) view.snap = true; // jump to the start town instead of sliding across the map
@@ -321,6 +363,54 @@ export class GameScene extends Phaser.Scene {
     if (dx) me.sprite.setFlipX(dx < 0); // face the action
     if (action === "attack") this.attack(me, angle, dist);
     else this.block(me, angle);
+  }
+
+  // ---------------- magic ----------------
+
+  /** Our magic scroll opened / closed (src/ui/scroll.ts): our bunny stands still while drawing. */
+  setDrawing(on: boolean) {
+    this.drawing = on;
+    if (on) this.stopAim();
+  }
+
+  /**
+   * X / C / V / B (or a click on the spell slot): start aiming that slot's spell; a target follows the
+   * pointer until we click (throw) or cancel. Pressing the same key again cancels too.
+   */
+  aimSpell(slot: SpellSlot) {
+    const me = this.bunnies.get(this.room.sessionId);
+    if (!me || me.life.state === "out" || this.drawing) return;
+    if (this.aiming === slot) return this.stopAim();
+    const charged = this.myState()?.spells?.get(slot);
+    if (!charged) return;
+    if (me.life.state === "protected") return this.fx.say(me.sprite, t("fx.protected")); // just respawned: no attacking
+    this.aiming = slot;
+    this.aimHint.textContent = t("magic.aimHint", { spell: t(`spell.${charged.spell}` as TKey) });
+    this.aimHint.hidden = false;
+    this.onAimChange?.(slot);
+  }
+
+  stopAim() {
+    if (!this.aiming) return;
+    this.aiming = null;
+    this.aimHint.hidden = true;
+    this.magic.showAim(null);
+    this.onAimChange?.(null);
+  }
+
+  /** A click while aiming: left = throw at the tile under the pointer (if in reach), right = cancel. */
+  private throwSpell(me: BunnyView, pointer: Phaser.Input.Pointer, right: boolean) {
+    const slot = this.aiming!;
+    if (right) return this.stopAim();
+    const target = this.magic.showAim(me.sprite, pointer.worldX, pointer.worldY);
+    if (!target) return;
+    if (!target.ok) return this.fx.say(me.sprite, t("magic.tooFar"));
+    this.stopAim();
+    this.room.send("spell", { slot, tx: target.tx, ty: target.ty });
+  }
+
+  private myState(): any {
+    return (this.room.state as any).players?.get(this.room.sessionId);
   }
 
   /** The item in one of our outfit / hotbar slots (from the synced state), if any. */
@@ -383,7 +473,8 @@ export class GameScene extends Phaser.Scene {
 
   update(_time: number, deltaMs: number) {
     const k = this.keys;
-    const out = this.bunnies.get(this.room.sessionId)?.life.state === "out"; // knocked out: can't move
+    // Knocked out, or drawing on the magic scroll: can't move
+    const out = this.bunnies.get(this.room.sessionId)?.life.state === "out" || this.drawing;
     const input: Input = {
       left: !out && (k.A.isDown || k.LEFT.isDown),
       right: !out && (k.D.isDown || k.RIGHT.isDown),
@@ -438,6 +529,7 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.fx.update(); // keep bursts and shields next to their bunnies
+    this.magic.update(this.time.now); // glowing eyes and their sparkles
     this.bubbles.update(); // and speech bubbles above them
 
     // Our own knock-out countdown / protection message
@@ -447,6 +539,16 @@ export class GameScene extends Phaser.Scene {
     if (this.banner.textContent !== text) this.banner.textContent = text;
     this.banner.hidden = !text;
     this.banner.className = me?.life.state ?? "";
+
+    // Aiming a spell: the target follows the pointer (which stays put on screen while the camera moves)
+    if (this.aiming) {
+      const charged = this.myState()?.spells?.get(this.aiming);
+      if (!me || me.life.state !== "alive" || !charged) this.stopAim(); // knocked out, or the spell faded
+      else {
+        const p = this.input.activePointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        this.magic.showAim(me.sprite, p.x, p.y);
+      }
+    }
 
     // Tell the minimap where we are
     if (me) this.onLocalMove?.(me.sprite.x / world.pixelWidth, me.sprite.y / world.pixelHeight);

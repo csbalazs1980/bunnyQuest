@@ -12,6 +12,10 @@ import { createLanguageSelect } from "./ui/language";
 import { OptionsPanel } from "./ui/options";
 import { HelpPanel } from "./ui/help";
 import { ChatBox } from "./ui/chat";
+import { MagicScroll, type CastResult } from "./ui/scroll";
+import { Spellbook } from "./ui/spellbook";
+import { packStrokes } from "../../shared/runes";
+import type { SpellSlot } from "../../shared/magic";
 import { HUNGER_MAX } from "../../shared/survival";
 import type { MapData } from "../../shared/world";
 import mapJson from "../../shared/map.json";
@@ -140,7 +144,7 @@ function start(room: Room) {
     keyboard.enabled = enabled;
     if (!enabled) keyboard.resetKeys(); // so the bunny doesn't keep walking while you type
   };
-  // Eating (inventory right-click, F, or right-click on the map with food in hand 2)
+  // Eating (inventory right-click, E, or right-click on the map with food in hand 2)
   const useItem = (item: { id: string; food: number }) => {
     if (item.food <= 0) return; // only food can be used for now
     const me = room.state.players.get(room.sessionId);
@@ -153,7 +157,31 @@ function start(room: Room) {
     onUnequip: (slotId) => room.send("unequip", { slotId }),
     onUse: useItem,
     setGameInput,
+    onSpell: (slot) => scene.aimSpell(slot),
   });
+  scene.onAimChange = (slot) => hud.setAiming(slot);
+  const spellbook = new Spellbook(); // P: spells and runes, docks below the stats
+
+  // Magic: hold F to draw runes on the scroll, let go to cast (the server reads the drawing)
+  const scroll = new MagicScroll({
+    canOpen: () => {
+      const me = room.state.players.get(room.sessionId);
+      return !!me && !me.respawnIn;
+    },
+    onOpen: () => {
+      scene.setDrawing(true);
+      room.send("scroll", { open: true }); // everyone sees our eyes glow
+    },
+    onCancel: () => {
+      scene.setDrawing(false);
+      room.send("scroll", { open: false });
+    },
+    onCast: (strokes) => {
+      scene.setDrawing(false);
+      room.send("cast", { strokes: packStrokes(strokes) });
+    },
+  });
+  room.onMessage("castResult", (r: CastResult) => scroll.showResult(r));
   // Chat: T opens a box; Enter shows the text in a speech bubble over our bunny for everyone
   new ChatBox({ onSend: (text) => scene.chat(text), setGameInput });
 
@@ -166,6 +194,11 @@ function start(room: Room) {
     }
     const me = state.players.get(room.sessionId);
     if (!me) return;
+    if (me.respawnIn > 0) scroll.cancel(); // knocked out: the scroll drops
+    const spells: { slot: SpellSlot; spell: any; secondsLeft: number }[] = [];
+    me.spells?.forEach((c: any, slot: string) => spells.push({ slot: slot as SpellSlot, spell: c.spell, secondsLeft: c.secondsLeft }));
+    hud.setSpells(spells);
+    spellbook.setRunes(Array.from(me.runes ?? []) as string[]);
     const equipment: Record<string, string> = {};
     me.equipment.forEach((itemId: string, slot: string) => (equipment[slot] = itemId));
     hud.setPlayer(

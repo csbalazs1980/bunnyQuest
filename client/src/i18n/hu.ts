@@ -27,7 +27,7 @@ export const hu: Dict = {
   "stat.luck": "Szerencse",
   "statHelp.strength": "A támadásra hat",
   "statHelp.agility": "A támadásra, a védekezésre és a mozgási sebességre hat",
-  "statHelp.intelligence": "Később lesz jelentősége",
+  "statHelp.intelligence": "Erősebbé teszi a varázslataidat",
   "statHelp.charm": "Később lesz jelentősége",
   "statHelp.endurance": "Az életerőre, az erőnlétre (fáradtság) és a regenerálódás gyorsaságára hat",
   "statHelp.luck": "Gyakrabban jönnek szerencsés ütések és védések",
@@ -36,6 +36,7 @@ export const hu: Dict = {
   "window.map": "Térkép",
   "window.inventory": "Tárgyak",
   "window.outfit": "Öltözet",
+  "window.spellbook": "Varázskönyv",
   "window.stats": "Tulajdonságok",
 
   "inv.filter": "szűrés…",
@@ -44,7 +45,7 @@ export const hu: Dict = {
   "inv.empty": "Nincs tárgy",
   "inv.equippedIn": "Felszerelve: {slot}",
   "inv.rowHint":
-    "Kattints rá, majd Shift+E a felvételhez vagy Shift+1..N egy gyorshelyre\nVagy húzd egy helyre · dupla kattintás: a kiválasztott gyorshely\nJobb klikk: használat (evés) · F: a kiválasztott gyorshely használata",
+    "Kattints rá, majd Shift+E a felvételhez vagy Shift+1..N egy gyorshelyre\nVagy húzd egy helyre · dupla kattintás: a kiválasztott gyorshely\nJobb klikk: használat (evés) · E: a kiválasztott gyorshely használata",
 
   "type.weapon": "Fegyver",
   "type.armor": "Páncél",
@@ -110,7 +111,7 @@ export const hu: Dict = {
   "stats.note": "A védés és a páncél tompítja a kapott ütéseket.",
   "vitals.hpHint": "Életerő",
   "vitals.fatigueHint": "Fáradtság: a támadás és a védés fáraszt; lassan elmúlik",
-  "vitals.hungerHint": "Éhség: egyél, hogy egészséges maradj (jobb klikk az ételre a tárgyak között, vagy F a kiválasztott gyorshelyhez)",
+  "vitals.hungerHint": "Éhség: egyél, hogy egészséges maradj (jobb klikk az ételre a tárgyak között, vagy E a kiválasztott gyorshelyhez)",
 
   "fx.words": "BUMM!|PUFF!|CSATT!",
   "fx.tooTired": "Túl fáradt!",
@@ -130,6 +131,34 @@ export const hu: Dict = {
   "fx.protected": "Még nem!",
   "life.knockedOut": "Kiütöttek! {n} múlva újra talpon…",
   "life.protected": "Még {n} mp-ig védett vagy, de még nem támadhatsz",
+
+  // varázslás
+  "spell.fireball": "Tűzgolyó",
+  "spell.fireball.desc": "Egy mezőn és a körülötte lévő 8 mezőn robban. Az Intelligencia erősíti, a páncél tompítja.",
+  "rune.ka": "Ka",
+  "rune.ka.meaning": "teremtés",
+  "rune.ash": "Ash",
+  "rune.ash.meaning": "tűz",
+  "rune.dom": "Dom",
+  "rune.dom.meaning": "robbanás",
+  "magic.scrollHint": "Rajzold a rúnákat fentről lefelé · engedd el az F-et a varázsláshoz · jobb klikk: tekercs törlése",
+  "magic.reading": "A rúnák olvasása…",
+  "magic.unknown": "?",
+  "magic.charged": "{spell}! Nyomd meg: {key}",
+  "magic.fail.empty": "A tekercs üres",
+  "magic.fail.unreadable": "A rúnák túl maszatosak, nem olvashatók",
+  "magic.fail.unknownRune": "Ezt a rúnát nem ismered",
+  "magic.fail.noSpell": "Ezekből a rúnákból nem lesz varázslat",
+  "magic.fail.busy": "Most nem!",
+  "magic.aimHint": "{spell}: kattints egy mezőre a dobáshoz · jobb klikk vagy Esc: mégse",
+  "magic.tooFar": "Túl messze!",
+  "slot.spell": "{spell} [{key}]: {n} mp múlva elillan\nNyomd meg: {key}, vagy kattints a célzáshoz",
+  "spellbook.spells": "Varázslatok",
+  "spellbook.runes": "Ismert rúnák",
+  "spellbook.hint": "Tartsd lenyomva az F-et, rajzold a tekercsre a varázslat rúnáit fentről lefelé, majd engedd el az F-et.",
+  "spellbook.none": "Még egy rúnát sem ismersz.",
+  "spellbook.missing": "Még nem ismered az összes rúnáját",
+  "fx.boom": "BUMMM!",
 
   "chat.placeholder": "Mondj valamit… (Enter: küldés · Esc: mégse)",
 
@@ -157,7 +186,7 @@ export const hu: Dict = {
 A [W] [A] [S] [D] gombokkal vagy a nyilakkal sétálhatsz. Az utakon gyorsabban haladsz. Az erdő, a dombok, a folyók, a mocsarak és a havas csúcsok lelassítanak, a tengert pedig senki sem tudja átúszni. Más nyuszikon és állatokon nem tudsz átsétálni: mindenki nagyjából fél mezőnyi távolságot tart.
 
 ## Ablakok
-- [M] térkép, [I] tárgyak, [O] öltözet, [C] tulajdonságok: nyomd meg a gombot, vagy kattints a címsorra az ablak összecsukásához, majd újra a kinyitásához.
+- [M] térkép, [I] tárgyak, [O] öltözet, [K] tulajdonságok, [P] varázskönyv: nyomd meg a gombot, vagy kattints a címsorra az ablak összecsukásához, majd újra a kinyitásához.
 - Húzd a címsort az ablak áthelyezéséhez. Jobb klikk a címsoron: az ablak visszakerül a szokásos helyére.
 - [Esc] megnyitja a beállításokat, [H] ezt a súgót.
 
@@ -172,11 +201,14 @@ A [W] [A] [S] [D] gombokkal vagy a nyilakkal sétálhatsz. Az utakon gyorsabban 
 ## Gyorssáv
 - Az 1. és 2. gyorshely a két kezed. Egy öv további zsebeket ad (a szaggatott keretes helyek).
 - **Jobb klikk** a térképen a 2. kezedben lévő tárgyat használja a mutató felé: a fegyver támad, a pajzs véd, az ételt megeszed.
-- Nyomd meg az [1], [2]… gombot, vagy kattints egy helyre a kiválasztásához. Az [F] használja a kiválasztott tárgyat, például megeszel egy répát.
+- Nyomd meg az [1], [2]… gombot, vagy kattints egy helyre a kiválasztásához. Az [E] használja a kiválasztott tárgyat, például megeszel egy répát.
 - Ételt jobb klikkel a tárgyak között is megehetsz.
 
 ## Éhség
 A zöld éhségsáv lassan fogy. A jóllakott nyuszi idővel gyógyul, a nagyon éhes életerőt veszít. Egyél, ha lecsökken, de ha már jóllaktál, nem tudsz enni.
+
+## Varázslás
+Tartsd lenyomva az [F] gombot, és kinyílik a varázstekercsed: rúnákat rajzolhatsz rá. A feltöltött varázslatok az [X] [C] [V] [B] helyekre kerülnek. Lásd a **Varázslás** témát.
 
 ## Csevegés
 Nyomd meg a [T] gombot, írd be az üzenetet, és nyomj [Enter]-t. Egy buborékban jelenik meg a nyuszid felett, mindenki láthatja. Az [Esc] megszakítja.`,
@@ -208,7 +240,7 @@ A patkányok élelem után kutatva kóborolnak a vadonban. Ha néhány lépésny
 - Az **Állóképesség** több életerőt és fáradtságot ad, és gyorsabban regenerálódsz.
 - A **Szerencse** gyakoribbá teszi a szerencsés ütéseket és védéseket.`,
   "help.stats.title": "Tulajdonságok",
-  "help.stats.body": `Amikor megalkotod a nyuszidat, 20 pontot osztasz szét hat tulajdonság között, mindegyik 1 és 10 között lehet. Nincs tökéletes összeállítás: egy erős harcos, egy gyors futó, egy szívós túlélő vagy egy szerencsés kópé is jól boldogulhat. A tulajdonságaidat bármikor megnézheted a Tulajdonságok ablakban ([C]).
+  "help.stats.body": `Amikor megalkotod a nyuszidat, 20 pontot osztasz szét hat tulajdonság között, mindegyik 1 és 10 között lehet. Nincs tökéletes összeállítás: egy erős harcos, egy gyors futó, egy szívós túlélő vagy egy szerencsés kópé is jól boldogulhat. A tulajdonságaidat bármikor megnézheted a Tulajdonságok ablakban ([K]).
 
 ## Erő
 Nyers erő. Az Erő a támadásod fő forrása: minél nagyobb, annál jobban fáj minden ütés a fegyvereddel. A védekezésben és a futásban nem segít. Válaszd, ha gyorsan le akarod zárni a harcokat.
@@ -217,7 +249,7 @@ Nyers erő. Az Erő a támadásod fő forrása: minél nagyobb, annál jobban f�
 Fürgeség és egyensúly. Az Ügyesség háromféleképpen segít: gyorsabban mozogsz az egész térképen, szilárdabb a védésed, és a támadásod is kicsit erősebb lesz. Ez a legsokoldalúbb tulajdonság, jó a harchoz és a nagy sziget felfedezéséhez is.
 
 ## Intelligencia
-Észjárás. Egyelőre semmit sem csinál; egy későbbi frissítésben lesz jelentősége. Az ide tett pontok befektetések a jövőbe.
+Észjárás, és a varázslás forrása. Az Intelligencia erősebbé teszi a varázslataidat: minél magasabb, annál jobban fáj egy tűzgolyó. Válaszd, ha messziről szeretnél harcolni.
 
 ## Báj
 Szellem és jó megjelenés. Ez sem csinál még semmit; ennek is később lesz szerepe.
@@ -235,4 +267,23 @@ Szerencse. Gyakoribbá teszi a szerencsés pillanatokat a harcban: nagyobb vagy 
 - **Támadás** és **Védekezés**: attól függ, mit tartasz a kezedben, és a tulajdonságaid erősítik.
 - **Páncél**: mindabból jön, amit viselsz; minden ütést tompít.
 - **Sebesség**: milyen gyorsan mozogsz. Az Ügyesség segít; az utak gyorsítanak, a nehéz terep lassít.`,
+  "help.magic.title": "Varázslás",
+  "help.magic.body": `## A varázstekercs
+Tartsd lenyomva az [F] gombot, és egy nagy varázstekercs nyílik ki előtted. Csak te látod: a többiek csak annyit látnak, hogy a nyuszid szeme vörösen izzik és szikrázik (és sejthetik, hogy valami készül). Amíg a tekercs nyitva van, egy helyben állsz.
+
+## Rúnák rajzolása
+- Rajzold meg egy varázslat rúnáit az egérrel, **fentről lefelé**, a helyes sorrendben. Az, hogy jobbra vagy balra rajzolod őket, nem számít.
+- Hagyj egy kis helyet két rúna között, hogy fentről lefelé ne érjenek össze; egy rúna több vonalból is állhat.
+- A rúnáknak nem kell tökéletesnek lenniük, csak felismerhetőnek. Nagy vagy kicsi, kicsit ferde: mind jó.
+- A **jobb klikk** letörli a tekercset, ha újra akarod kezdeni.
+- Engedd el az [F] gombot, és a tekercs felolvasódik. Egy pillanatig mutatja, melyik rúnát hol ismerte fel (a "?" azt jelenti, hogy azt nem tudta elolvasni).
+- Csak olyan rúnát használhatsz, amit ismersz. A **Varázskönyv** ([P]) megmutatja a rúnáidat és a belőlük készíthető varázslatokat.
+
+## Varázshelyek
+A sikerült varázslat egy varázshelyre kerül a gyorssávon: [X], aztán [C], [V] és [B]. **1 percig** vár ott, aztán elillan. Nyomd meg a hely gombját (vagy kattints rá) a használatához; minden töltés egyszer működik. Ha mind a négy tele van, az új varázslat azt váltja le, amelyik a leghamarabb illanna el. Ha kiütnek, elejted a tekercset, és minden feltöltött varázslatod elillan.
+
+## Tűzgolyó
+Rúnák: **Ka** (teremtés), **Ash** (tűz), **Dom** (robbanás). Nyomd meg a gombját, és egy célkereszt jelenik meg a földön: mozgasd az egérrel, és **kattints** a dobáshoz. A tűzgolyó odarepül, és azon a mezőn meg a körülötte lévő 8 mezőn robban, mindenkit és mindent megsebezve, aki ott áll (kivéve téged). Körülbelül 8 mezőnyire ér el; ha túl messze célzol, a cél pirosra vált. A **jobb klikk** vagy az [Esc] visszavonja.
+- A sebzése az **Intelligenciáddal** nő. A páncél tompítja, de pajzzsal nem lehet kivédeni.
+- Ha a baráti tűz ki van kapcsolva, más nyuszikat nem sebez meg.`,
 };

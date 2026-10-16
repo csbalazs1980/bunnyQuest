@@ -139,7 +139,9 @@ export type CombatFx =
   | { kind: "bite"; id: string; angle: number } // rat `id` bites toward `angle`
   | { kind: "shout"; id: string; line: string } // an enemy shouts one of SHOUTS (shared/enemies.ts)
   | { kind: "death"; id: string } // `id` ran out of HP: a bunny is knocked out, a rat dies
-  | { kind: "respawn"; id: string }; // `id` woke up in the start town (protected for a while)
+  | { kind: "respawn"; id: string } // `id` woke up in the start town (protected for a while)
+  // `id` threw a fireball from (x, y) to tile (tx, ty); it lands and explodes after `ms` (shared/magic.ts)
+  | { kind: "fireball"; id: string; x: number; y: number; tx: number; ty: number; ms: number };
 
 /** Cleans an angle (radians) and click distance coming from a client. Returns null if invalid. */
 export function cleanAim(angle: unknown, dist: unknown): { angle: number; dist: number } | null {

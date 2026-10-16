@@ -1,4 +1,4 @@
-// Stats window (hotkey C): base stats, HP, and the combat values derived from stats + equipment.
+// Stats window (hotkey K; C is a spell slot): base stats, HP, and the combat values derived from stats + equipment.
 import { UiWindow } from "./window";
 import { fmt, STAT_MAX, STATS, type Derived, type Stats } from "../../../shared/stats";
 import { PLAYER_SPEED } from "../../../shared/world";
@@ -13,8 +13,8 @@ export class StatsView {
   private body: HTMLDivElement;
 
   constructor() {
-    // Starts minimized: the right side is already busy; press C to open it
-    this.window = new UiWindow({ id: "stats", titleKey: "window.stats", hotkey: "C", defaultOpen: false });
+    // Starts minimized: the right side is already busy; press K to open it
+    this.window = new UiWindow({ id: "stats", titleKey: "window.stats", hotkey: "K", defaultOpen: false });
     this.body = document.createElement("div");
     this.body.className = "stats";
     this.window.body.append(this.body);
