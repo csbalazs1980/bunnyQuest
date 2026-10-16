@@ -27,6 +27,9 @@
       #ff-row[hidden] { display: none; }
       #ff-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #ccc; user-select: none; }
       #lobby #ff { width: 16px; height: 16px; padding: 0; margin: 0; accent-color: #f2a7c3; cursor: pointer; }
+      #lobby button.secondary { background: transparent; color: #f2a7c3; }
+      #lobby button.secondary:hover:not(:disabled) { background: rgba(242, 167, 195, 0.12); }
+      #lobby button[hidden] { display: none; }
       #lobby button:disabled { opacity: 0.45; cursor: not-allowed; }
 
       /* Character creation (src/ui/creation.ts) */
@@ -385,6 +388,7 @@
       <input id="name" maxlength="16" />
       <label id="ff-row"><input type="checkbox" id="ff" /> <span id="ff-label"></span></label>
       <button id="play"></button>
+      <button id="new" class="secondary" hidden></button>
       <div class="err" id="err"></div>
     </div>
     <!-- Texts are filled in from src/i18n (English, Serbian, Hungarian) -->

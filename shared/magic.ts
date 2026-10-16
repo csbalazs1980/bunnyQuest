@@ -4,7 +4,8 @@
 //   1. Hold F: a magic scroll opens (only for you; everyone else just sees your eyes glow red and sparkle).
 //   2. Draw a spell's runes on it from top to bottom (left-right position doesn't matter), let go of F.
 //   3. If you know the runes and drew them well enough, the spell goes into a free spell slot on the
-//      hotbar (X, C, V, B) for SPELL_CHARGE_MS. Using it (press its key, aim, click) casts it once.
+//      hotbar for spellChargeMs(Intelligence). How many slots you have depends on Intelligence too
+//      (spellSlotCount). Using a spell (press its key, aim, click) casts it once.
 import { TILE_SIZE } from "./combat.js";
 import type { RuneId } from "./runes.js";
 
@@ -21,8 +22,23 @@ export const STARTER_RUNES: RuneId[] = ["ka", "ash", "dom"];
 export const SPELL_SLOTS = ["X", "C", "V", "B"] as const;
 export type SpellSlot = (typeof SPELL_SLOTS)[number];
 
-/** A charged spell waits in its slot this long, then fades away unused. */
-export const SPELL_CHARGE_MS = 60_000;
+/**
+ * How many spell slots a bunny has, by Intelligence: 1-2 → 1 (X), 3-5 → 2 (X, C), 6-7 → 3 (X, C, V),
+ * 8+ → all 4 (X, C, V, B).
+ */
+export function spellSlotCount(intelligence: number): number {
+  if (intelligence >= 8) return 4;
+  if (intelligence >= 6) return 3;
+  if (intelligence >= 3) return 2;
+  return 1;
+}
+/** The spell slots a bunny can use (the first spellSlotCount of SPELL_SLOTS). */
+export const spellSlotsFor = (intelligence: number): SpellSlot[] => SPELL_SLOTS.slice(0, spellSlotCount(intelligence));
+
+/** A charged spell waits in its slot 1 minute + 6 s per Intelligence point, then fades away unused. */
+export const SPELL_CHARGE_BASE_MS = 60_000;
+export const SPELL_CHARGE_PER_INTELLIGENCE_MS = 6_000;
+export const spellChargeMs = (intelligence: number) => SPELL_CHARGE_BASE_MS + intelligence * SPELL_CHARGE_PER_INTELLIGENCE_MS;
 /** At most one cast (scroll read) per this long, so nobody floods the server with drawings. */
 export const CAST_COOLDOWN_MS = 400;
 

@@ -5,7 +5,7 @@ export const hu: Dict = {
   "lobby.namePlaceholder": "A neved",
   "lobby.create": "Új játék",
   "lobby.join": "Csatlakozás",
-  "lobby.joinFailed": "Nem sikerült csatlakozni – lehet, hogy a játék megtelt vagy már véget ért.",
+  "lobby.joinFailed": "Nem sikerült csatlakozni – lehet, hogy a játék megtelt vagy már véget ért. Az „Új játék” gombbal indíthatsz egy sajátot.",
   "lobby.serverDown": "A szerver nem érhető el ({url}). Fut egyáltalán?",
   "lobby.invalidCharacter": "Ez a karakter nem érvényes. Oszd ki az összes pontot (minden tulajdonság 1–10).",
   "lobby.spendFirst": "Előbb oszd ki az összes pontot (még {n} maradt)",
@@ -27,7 +27,7 @@ export const hu: Dict = {
   "stat.luck": "Szerencse",
   "statHelp.strength": "A támadásra hat",
   "statHelp.agility": "A támadásra, a védekezésre és a mozgási sebességre hat",
-  "statHelp.intelligence": "Erősebbé teszi a varázslataidat",
+  "statHelp.intelligence": "Erősebbé teszi a varázslataidat, több varázshelyet ad, és tovább tartanak a varázslatok",
   "statHelp.charm": "Később lesz jelentősége",
   "statHelp.endurance": "Az életerőre, az erőnlétre (fáradtság) és a regenerálódás gyorsaságára hat",
   "statHelp.luck": "Gyakrabban jönnek szerencsés ütések és védések",
@@ -97,6 +97,10 @@ export const hu: Dict = {
   "stats.attack": "Támadás",
   "stats.defense": "Védekezés",
   "stats.armor": "Páncél",
+  "stats.spellSlots": "Varázshelyek",
+  "stats.spellSlotsHint": "A gyorssáv helyei, ahol a feltöltött varázslataid várnak. Több Intelligenciával több jár.",
+  "stats.spellTime": "Varázslat ideje",
+  "stats.spellTimeHint": "Meddig vár egy feltöltött varázslat a helyén, mielőtt elillan. Az Intelligencia meghosszabbítja.",
   "stats.speed": "Sebesség",
   "stats.hunger": "Éhség",
   "stats.hpHint": "Életerő. Az állóképesség növeli.",
@@ -249,7 +253,7 @@ Nyers erő. Az Erő a támadásod fő forrása: minél nagyobb, annál jobban f�
 Fürgeség és egyensúly. Az Ügyesség háromféleképpen segít: gyorsabban mozogsz az egész térképen, szilárdabb a védésed, és a támadásod is kicsit erősebb lesz. Ez a legsokoldalúbb tulajdonság, jó a harchoz és a nagy sziget felfedezéséhez is.
 
 ## Intelligencia
-Észjárás, és a varázslás forrása. Az Intelligencia erősebbé teszi a varázslataidat: minél magasabb, annál jobban fáj egy tűzgolyó. Válaszd, ha messziről szeretnél harcolni.
+Észjárás, és a varázslás forrása. Az Intelligencia erősebbé teszi a varázslataidat (minél magasabb, annál jobban fáj egy tűzgolyó), több varázshelyet ad a gyorssávon (eleinte 1, Intelligencia 3-tól 2, 6-tól 3, 8-tól mind a 4), és a feltöltött varázslatok tovább várnak, mielőtt elillannak. Válaszd, ha messziről szeretnél harcolni.
 
 ## Báj
 Szellem és jó megjelenés. Ez sem csinál még semmit; ennek is később lesz szerepe.
@@ -280,7 +284,7 @@ Tartsd lenyomva az [F] gombot, és egy nagy varázstekercs nyílik ki előtted. 
 - Csak olyan rúnát használhatsz, amit ismersz. A **Varázskönyv** ([P]) megmutatja a rúnáidat és a belőlük készíthető varázslatokat.
 
 ## Varázshelyek
-A sikerült varázslat egy varázshelyre kerül a gyorssávon: [X], aztán [C], [V] és [B]. **1 percig** vár ott, aztán elillan. Nyomd meg a hely gombját (vagy kattints rá) a használatához; minden töltés egyszer működik. Ha mind a négy tele van, az új varázslat azt váltja le, amelyik a leghamarabb illanna el. Ha kiütnek, elejted a tekercset, és minden feltöltött varázslatod elillan.
+A sikerült varázslat egy szabad varázshelyre kerül a gyorssávon: [X], aztán [C], [V] és [B]. Hogy hány ilyen helyed van, az **Intelligenciádtól** függ: eleinte 1, Intelligencia 3-tól 2, 6-tól 3, 8-tól mind a 4. Egy varázslat **1 percig, plusz Intelligencia-pontonként 6 másodpercig** vár a helyén, aztán elillan. Nyomd meg a hely gombját (vagy kattints rá) a használatához; minden töltés egyszer működik. Ha minden helyed tele van, az új varázslat azt váltja le, amelyik a leghamarabb illanna el. Ha kiütnek, elejted a tekercset, és minden feltöltött varázslatod elillan.
 
 ## Tűzgolyó
 Rúnák: **Ka** (teremtés), **Ash** (tűz), **Dom** (robbanás). Nyomd meg a gombját, és egy célkereszt jelenik meg a földön: mozgasd az egérrel, és **kattints** a dobáshoz. A tűzgolyó odarepül, és azon a mezőn meg a körülötte lévő 8 mezőn robban, mindenkit és mindent megsebezve, aki ott áll (kivéve téged). Körülbelül 8 mezőnyire ér el; ha túl messze célzol, a cél pirosra vált. A **jobb klikk** vagy az [Esc] visszavonja.

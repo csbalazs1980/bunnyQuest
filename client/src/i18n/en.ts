@@ -6,7 +6,7 @@ export const en = {
   "lobby.namePlaceholder": "Your name",
   "lobby.create": "Create game",
   "lobby.join": "Join game",
-  "lobby.joinFailed": "Could not join — the game may be full or closed.",
+  "lobby.joinFailed": "Could not join — the game may be full or closed. You can start your own with “Create game”.",
   "lobby.serverDown": "Could not reach the server at {url}. Is it running?",
   "lobby.invalidCharacter": "This character is not valid. Spend all points (each stat 1–10).",
   "lobby.spendFirst": "Spend all points first ({n} left)",
@@ -30,7 +30,7 @@ export const en = {
   "stat.luck": "Luck",
   "statHelp.strength": "Affects attack",
   "statHelp.agility": "Affects attack, defense and movement speed",
-  "statHelp.intelligence": "Makes your spells stronger",
+  "statHelp.intelligence": "Makes your spells stronger, gives you more spell slots and makes spells last longer",
   "statHelp.charm": "Will matter later",
   "statHelp.endurance": "Affects health, stamina (fatigue) and how fast you recover",
   "statHelp.luck": "Lucky hits and lucky blocks happen more often",
@@ -107,6 +107,10 @@ export const en = {
   "stats.defense": "Defense",
   "stats.armor": "Armor",
   "stats.speed": "Speed",
+  "stats.spellSlots": "Spell slots",
+  "stats.spellSlotsHint": "The hotbar slots where your charged spells wait. More Intelligence gives you more of them.",
+  "stats.spellTime": "Spell lasts",
+  "stats.spellTimeHint": "How long a charged spell waits in its slot before it fades. Intelligence makes it last longer.",
   "stats.hunger": "Hunger",
   "stats.hpHint": "Health. Endurance gives you more.",
   "stats.fatigueHint":
@@ -260,7 +264,7 @@ Raw power. Strength is the main source of your attack: the higher it is, the mor
 Quickness and balance. Agility helps in three ways: you move faster everywhere on the map, your blocks get sturdier, and your attacks get a little stronger too. It is the most all-round stat, good for fighting and for exploring the big island.
 
 ## Intelligence
-Cleverness, and the source of magic. Intelligence makes your spells stronger: the higher it is, the more a fireball hurts. Choose it if you want to fight from a distance.
+Cleverness, and the source of magic. Intelligence makes your spells stronger (the higher it is, the more a fireball hurts), gives you more spell slots on the hotbar (1 slot at first, 2 from Intelligence 3, 3 from 6, all 4 from 8) and lets charged spells wait longer before they fade. Choose it if you want to fight from a distance.
 
 ## Charm
 Wit and good looks. It doesn't do anything yet either; it will also matter later.
@@ -291,7 +295,7 @@ Hold [F] and a big magic scroll opens in front of you. Only you can see it: ever
 - You can only use runes you know. The **Spellbook** ([P]) shows your runes and the spells you can make with them.
 
 ## Spell slots
-A spell that works goes into a spell slot on the hotbar: [X], then [C], [V] and [B]. It waits there for **1 minute**, then fades away. Press the slot's key (or click it) to use it; each charge works once. If all four are full, a new spell replaces the one that would fade first. Getting knocked out drops your scroll and every charged spell.
+A spell that works goes into a free spell slot on the hotbar: [X], then [C], [V] and [B]. How many of these slots you have depends on your **Intelligence**: 1 at first, 2 from Intelligence 3, 3 from 6 and all 4 from 8. A spell waits in its slot for **1 minute plus 6 seconds per Intelligence point**, then fades away. Press the slot's key (or click it) to use it; each charge works once. If all your slots are full, a new spell replaces the one that would fade first. Getting knocked out drops your scroll and every charged spell.
 
 ## Fireball
 Runes: **Ka** (create), **Ash** (fire), **Dom** (burst). Press its key and a target appears on the ground: move it with the mouse and **click** to throw. The fireball flies there and explodes on that tile and the 8 tiles around it, hurting everyone and everything standing there (except you). It reaches about 8 tiles; the target turns red when it is too far. **Right-click** or [Esc] cancels.

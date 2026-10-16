@@ -22,6 +22,10 @@ npm run dev
 Enter a name, distribute your stat points, click **Create game**, then open **Options** (top-left, or Esc) → **Copy invite link** and open it in a
 second browser tab to see two bunnies moving together. Move with WASD or the arrow keys.
 
+Opening an invite link shows **Join game** and, under it, **Create game** (with the friendly fire checkbox),
+so you can start your own room instead, e.g. after a reload when the old room is gone (restarting the
+server closes every room).
+
 ## Options and languages
 - **Friendly fire** (checkbox on the start page, only when creating a game; remembered): on = bunnies can
   hurt each other, off = their attacks simply pass through other bunnies (no hit, no blood, no damage);
@@ -88,7 +92,7 @@ Strength, Agility, Intelligence, Charm, Endurance, Luck. The game can only start
 
 Example: attack 8 against defense 5 and armor 2 → 1 damage if blocked, 6 if not.
 The weapon values come from what is in your hands (the best attack and the best defense of the two hands;
-empty hands attack with 1). The Sword is 5 attack / 4 defense. Intelligence powers magic (see **Magic** below); Charm does nothing yet.
+empty hands attack with 1). The Sword is 5 attack / 4 defense. Intelligence powers magic: spell damage, number of spell slots and how long spells last (see **Magic** below); Charm does nothing yet.
 
 The **Stats** window (hotkey **K**, starts minimized) shows your stats, HP, fatigue, speed and the current
 Attack / Defense / Armor, which change as you equip things. Players only see plain summaries of what each
@@ -202,8 +206,15 @@ A rune-drawing system in the spirit of Arx Fatalis: you draw a spell's runes, an
 3. **Let go of F.** The server reads the drawing (so it can't be cheated) and the scroll shows for a moment
    which rune it saw where ("?" = unreadable), plus the outcome.
 4. A spell that works goes into the first free **spell slot** on the hotbar: **X**, then **C**, **V**, **B**.
-   It waits there for **1 minute** (the countdown is in the slot; it blinks in the last 10 s), then fades.
-   Each charge is used once. All four full: the new spell replaces the one closest to fading.
+   How many slots you have depends on **Intelligence**:
+
+   | Intelligence | 1–2 | 3–5 | 6–7 | 8–10 |
+   |---|---|---|---|---|
+   | Spell slots | X | X, C | X, C, V | X, C, V, B |
+
+   It waits there for **1 minute + 6 s × Intelligence** (Intelligence 5 → 90 s, 10 → 2 min; the countdown is
+   in the slot, it blinks in the last 10 s), then fades. Each charge is used once. All your slots full: the
+   new spell replaces the one closest to fading. The Stats window shows both values.
    Getting knocked out drops the scroll and every charged spell.
 
 **Fireball** = **Ka** (create, a hook) + **Ash** (fire, a long "\\" with two short strokes) + **Dom** (burst, a dome).
@@ -231,7 +242,7 @@ Adding things:
   meaning to the translation files (`rune.<id>`, `rune.<id>.meaning`). Keep runes visually distinct.
 - **A spell:** add it to `SPELLS` in `shared/magic.ts` (its runes and icon), its texts (`spell.<id>`,
   `spell.<id>.desc`), and what it does in `GameRoom` (the `spell` message, like `throwFireball`).
-- Numbers: `SPELL_CHARGE_MS`, `FIREBALL` (damage, radius, range, speed) in `shared/magic.ts`.
+- Numbers: `spellSlotCount`, `SPELL_CHARGE_BASE_MS` / `SPELL_CHARGE_PER_INTELLIGENCE_MS`, `FIREBALL` (damage, radius, range, speed) in `shared/magic.ts`.
 - Code: scroll `client/src/ui/scroll.ts`, spellbook `client/src/ui/spellbook.ts`, glowing eyes / fireball /
   target `client/src/magicFx.ts`, spell slots in `client/src/ui/hud.ts`, aiming in `GameScene`.
 

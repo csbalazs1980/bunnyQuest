@@ -27,10 +27,15 @@ const roomId = new URLSearchParams(location.search).get("room");
 
 const nameInput = $<HTMLInputElement>("name");
 const playBtn = $<HTMLButtonElement>("play");
-// Friendly fire: chosen by whoever creates the game (hidden when joining someone else's); remembered
+// Opened with an invite link: "Join game" first, and under it "Create game" to start your own room
+// instead (handy when that room is gone, e.g. after restarting the server)
+const newBtn = $<HTMLButtonElement>("new");
+newBtn.hidden = !roomId;
+// Friendly fire: chosen by whoever creates the game; remembered. With an invite link it sits under
+// "Create game", since it only applies to a new game.
 const ffBox = $<HTMLInputElement>("ff");
 ffBox.checked = localStorageGet("bq-ff") !== "off";
-$("ff-row").hidden = !!roomId;
+if (roomId) newBtn.after($("ff-row"));
 const err = $<HTMLDivElement>("err");
 
 nameInput.value = localStorageGet("bq-name") ?? "";
@@ -53,14 +58,17 @@ try {
 const creator = new CharacterCreator(remembered, () => updatePlayButton());
 playBtn.before(creator.el);
 const updatePlayButton = () => {
-  playBtn.disabled = !creator.complete;
-  playBtn.title = creator.complete ? "" : t("lobby.spendFirst", { n: creator.pointsLeft });
+  for (const b of [playBtn, newBtn]) {
+    b.disabled = !creator.complete;
+    b.title = creator.complete ? "" : t("lobby.spendFirst", { n: creator.pointsLeft });
+  }
 };
 
 /** Start-screen texts in the current language. */
 function relabelLobby() {
   nameInput.placeholder = t("lobby.namePlaceholder");
   playBtn.textContent = t(roomId ? "lobby.join" : "lobby.create");
+  newBtn.textContent = t("lobby.create");
   $("ff-label").textContent = t("lobby.friendlyFire");
   $("ff-row").title = t("lobby.friendlyFireHint");
   updatePlayButton();
@@ -69,17 +77,21 @@ function relabelLobby() {
 relabelLobby();
 onLanguageChange(relabelLobby);
 
-playBtn.onclick = async () => {
+playBtn.onclick = () => play(roomId);
+newBtn.onclick = () => play(null);
+
+/** Joins the room `joinId`, or creates a new game if it is null. */
+async function play(joinId: string | null) {
   const name = nameInput.value.trim() || "Bunny";
   localStorageSet("bq-name", name);
   localStorageSet("bq-stats", JSON.stringify(creator.stats));
   localStorageSet("bq-ff", ffBox.checked ? "on" : "off");
   const stats = { ...creator.stats };
-  playBtn.disabled = true;
+  playBtn.disabled = newBtn.disabled = true;
   showError(null);
   try {
-    const room = roomId
-      ? await client.joinById(roomId, { name, stats })
+    const room = joinId
+      ? await client.joinById(joinId, { name, stats })
       : await client.create("game", { name, stats, friendlyFire: ffBox.checked });
     start(room);
   } catch (e) {
@@ -88,13 +100,13 @@ playBtn.onclick = async () => {
     showError(
       message.includes("Invalid character")
         ? { key: "lobby.invalidCharacter" }
-        : roomId
+        : joinId
           ? { key: "lobby.joinFailed" }
           : { key: "lobby.serverDown", params: { url: SERVER_URL } }
     );
     updatePlayButton();
   }
-};
+}
 
 /** A small message at the top of the screen that fades away after `ms`. */
 function toast(text: string, ms: number) {

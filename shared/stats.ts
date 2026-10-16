@@ -10,7 +10,7 @@ export type Stats = Record<StatKey, number>;
 export const STATS: { key: StatKey; label: string; short: string; help: string }[] = [
   { key: "strength", label: "Strength", short: "STR", help: "Affects attack" },
   { key: "agility", label: "Agility", short: "AGI", help: "Affects attack, defense and movement speed" },
-  { key: "intelligence", label: "Intelligence", short: "INT", help: "Affects magic damage" },
+  { key: "intelligence", label: "Intelligence", short: "INT", help: "Affects spell damage, spell slots and how long spells last" },
   { key: "charm", label: "Charm", short: "CHA", help: "Will matter later" },
   { key: "endurance", label: "Endurance", short: "END", help: "Affects health, stamina (fatigue) and how fast you recover" },
   { key: "luck", label: "Luck", short: "LCK", help: "Lucky hits and lucky blocks happen more often" },

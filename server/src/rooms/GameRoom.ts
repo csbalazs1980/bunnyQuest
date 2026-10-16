@@ -36,8 +36,8 @@ import {
   fireballPower,
   inBlast,
   inFireballRange,
-  SPELL_CHARGE_MS,
-  SPELL_SLOTS,
+  spellChargeMs,
+  spellSlotsFor,
   spellOf,
   STARTER_RUNES,
   type CastFail,
@@ -242,7 +242,8 @@ export class GameRoom extends Room<GameState> {
 
   /**
    * Reads a drawing from the magic scroll. If it spells something the bunny knows, the spell goes into
-   * the first free spell slot (X, C, V, B; all full: the one that would fade first is replaced).
+   * the first free spell slot the bunny has (X, C, V, B: how many depends on Intelligence); all full:
+   * the one that would fade first is replaced. It waits 1 minute + 6 s per Intelligence point.
    * The caster gets the reading back either way, so the scroll can show which runes it saw.
    */
   private readScroll(client: Client, raw: unknown) {
@@ -268,15 +269,17 @@ export class GameRoom extends Room<GameState> {
     const spell = spellOf(guesses.map((g) => g.rune));
     if (!spell) return reply("noSpell", guesses);
 
-    let slot: SpellSlot | undefined = SPELL_SLOTS.find((s) => !p.spells.has(s));
+    const slots = spellSlotsFor(p.stats.intelligence);
+    let slot: SpellSlot | undefined = slots.find((s) => !p.spells.has(s));
     if (!slot) {
-      // All four are charged: replace the one closest to fading away
-      slot = SPELL_SLOTS.reduce((a, b) => (p.spells.get(a)!.until <= p.spells.get(b)!.until ? a : b));
+      // All of them are charged: replace the one closest to fading away
+      slot = slots.reduce((a, b) => (p.spells.get(a)!.until <= p.spells.get(b)!.until ? a : b));
     }
     const charged = new ChargedSpell();
+    const ms = spellChargeMs(p.stats.intelligence);
     charged.spell = spell;
-    charged.until = now + SPELL_CHARGE_MS;
-    charged.secondsLeft = Math.ceil(SPELL_CHARGE_MS / 1000);
+    charged.until = now + ms;
+    charged.secondsLeft = Math.ceil(ms / 1000);
     p.spells.set(slot, charged);
     reply(null, guesses, spell, slot);
   }
@@ -310,7 +313,7 @@ export class GameRoom extends Room<GameState> {
     }, ms);
   }
 
-  /** Charged spells fade away after SPELL_CHARGE_MS; the synced whole seconds only change once a second. */
+  /** Charged spells fade away after spellChargeMs(Intelligence); the synced whole seconds only change once a second. */
   private updateSpells(p: Player, now: number) {
     const gone: string[] = [];
     p.spells.forEach((c, slot) => {
