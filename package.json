@@ -1,0 +1,19 @@
+{
+  "name": "bunnyquest",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,client -c green,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w server && npm run build -w client",
+    "share": "npm run build -w client && npm run serve -w server",
+    "tunnel": "cloudflared tunnel --url http://localhost:2567",
+    "map": "node tools/generate-map.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

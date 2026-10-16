@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>bunnyQuest</title>
+    <style>
+      /* Readable font for speech bubbles and chat (Inter SemiBold, SIL Open Font License: public/fonts/Inter-OFL.txt) */
+      @font-face {
+        font-family: "BunnyChat";
+        src: url("fonts/inter-semibold.woff") format("woff");
+        font-weight: 600;
+        font-display: swap;
+      }
+      html, body { margin: 0; height: 100%; background: #1d1b26; color: #eee; font-family: monospace; }
+      #game { width: 100%; height: 100%; }
+      canvas { image-rendering: pixelated; }
+      #lobby {
+        position: fixed; inset: 0; display: flex; flex-direction: column; gap: 12px;
+        align-items: center; justify-content: center; background: #1d1b26;
+      }
+      #lobby h1 { margin: 0 0 8px; font-size: 32px; letter-spacing: 2px; }
+      #lobby input, #lobby button { font: inherit; padding: 8px 12px; border-radius: 4px; border: 2px solid #555; }
+      #lobby input { background: #2a2836; color: #eee; width: 220px; }
+      #lobby button { background: #f2a7c3; color: #1d1b26; cursor: pointer; border-color: #f2a7c3; width: 248px; }
+      #lobby .err { color: #ff8080; min-height: 1em; }
+      #ff-row[hidden] { display: none; }
+      #ff-row { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: #ccc; user-select: none; }
+      #lobby #ff { width: 16px; height: 16px; padding: 0; margin: 0; accent-color: #f2a7c3; cursor: pointer; }
+      #lobby button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+      /* Character creation (src/ui/creation.ts) */
+      #creator {
+        width: 470px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 10px 12px;
+        background: #2a2836; border: 2px solid #555; border-radius: 8px;
+      }
+      .creator-head { display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 6px; }
+      .creator-left { color: #f2a7c3; }
+      .creator-left.done { color: #7fe07f; }
+      .creator-row { display: grid; grid-template-columns: 96px 26px 28px 26px 1fr; align-items: center; gap: 4px; padding: 2px 0; }
+      #lobby .creator-btn {
+        width: 26px; height: 24px; padding: 0; line-height: 1; font-size: 16px;
+        background: #3a3848; color: #eee; border: 1px solid #666; border-radius: 4px;
+      }
+      #lobby .creator-btn:hover:not(:disabled) { border-color: #f2a7c3; }
+      .creator-value { text-align: center; font-weight: bold; font-size: 15px; }
+      .creator-note { color: #8a879a; font-size: 11px; padding-left: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .creator-preview { margin-top: 8px; padding-top: 6px; border-top: 1px solid #444; color: #ccc; font-size: 12px; }
+      /* Options button (top-left) and panel (src/ui/options.ts) */
+      #options-button {
+        position: fixed; top: 8px; left: 8px; z-index: 6; font: inherit; font-size: 12px; cursor: pointer;
+        padding: 5px 10px; color: #eee; background: rgba(20, 20, 28, 0.88); border: 2px solid #555; border-radius: 8px;
+      }
+      #options-button:hover { border-color: #f2a7c3; }
+      #options-overlay {
+        position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, 0.45);
+        display: flex; align-items: center; justify-content: center;
+      }
+      #options-overlay[hidden] { display: none; }
+      #options {
+        width: 320px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 14px 16px;
+        background: #22202c; border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; gap: 12px;
+      }
+      #options h2 { margin: 0; font-size: 16px; }
+      .opt-section { display: flex; flex-direction: column; gap: 6px; }
+      #options button {
+        font: inherit; padding: 7px 10px; cursor: pointer; border-radius: 6px;
+        color: #1d1b26; background: #f2a7c3; border: 2px solid #f2a7c3;
+      }
+      #options .opt-close { background: #3a3848; color: #eee; border-color: #666; }
+      #options .opt-exit { background: #e06060; border-color: #e06060; color: #fff; }
+      .opt-hint { font-size: 11px; color: #aaa; }
+      .opt-url { font-size: 11px; color: #ccc; word-break: break-all; user-select: all; }
+      .opt-lang { flex-direction: row; align-items: center; justify-content: space-between; }
+      .opt-buttons { flex-direction: row; justify-content: space-between; }
+      /* Our own knock-out countdown / spawn protection message (src/scenes/GameScene.ts) */
+      #life-banner {
+        position: fixed; top: 8px; left: 50%; transform: translateX(-50%); z-index: 5; pointer-events: none;
+        padding: 10px 18px; border-radius: 10px; border: 2px solid #555; background: rgba(20, 20, 28, 0.85);
+        font-family: "BunnyChat", system-ui, sans-serif; font-size: 20px; font-weight: 600; color: #fff;
+        text-align: center; max-width: calc(100vw - 32px); box-sizing: border-box;
+      }
+      #life-banner[hidden] { display: none; }
+      #life-banner.out { border-color: #e06060; font-size: 24px; }
+      #life-banner.protected { border-color: #f2d36b; font-size: 15px; }
+      /* Short notes at the top of the screen, e.g. friendly fire when joining (main.ts toast()) */
+      .toast {
+        position: fixed; top: 72px; left: 50%; transform: translateX(-50%); z-index: 5; pointer-events: none;
+        padding: 8px 14px; border-radius: 8px; border: 2px solid #f2a7c3; background: rgba(20, 20, 28, 0.9);
+        font-family: "BunnyChat", system-ui, sans-serif; font-size: 14px; font-weight: 600; color: #fff;
+        text-align: center; max-width: min(520px, calc(100vw - 32px)); box-sizing: border-box;
+        animation: toast-in 0.25s ease-out; transition: opacity 0.5s;
+      }
+      .toast.gone { opacity: 0; }
+      @keyframes toast-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+      /* Help button (under Options) and modal (src/ui/help.ts) */
+      #help-button {
+        position: fixed; top: 44px; left: 8px; z-index: 6; width: 32px; height: 32px; padding: 0; cursor: pointer;
+        font: inherit; font-size: 17px; font-weight: bold; color: #1d1b26; background: #f2a7c3;
+        border: 2px solid #f2a7c3; border-radius: 50%; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+      }
+      #help-button:hover { background: #ffc4da; border-color: #fff; }
+      #help-overlay {
+        position: fixed; inset: 0; z-index: 21; background: rgba(0, 0, 0, 0.5);
+        display: flex; align-items: center; justify-content: center;
+      }
+      #help-overlay[hidden] { display: none; }
+      #help {
+        width: 780px; max-width: calc(100vw - 32px); height: 560px; max-height: calc(100vh - 32px); box-sizing: border-box;
+        background: #22202c; border: 2px solid #555; border-radius: 10px; display: flex; flex-direction: column; overflow: hidden;
+      }
+      .help-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; border-bottom: 1px solid #444; }
+      .help-head h2 { margin: 0; font-size: 16px; }
+      .help-close { font: inherit; font-size: 14px; cursor: pointer; color: #eee; background: none; border: none; padding: 2px 6px; border-radius: 4px; }
+      .help-close:hover { background: #3a3848; }
+      .help-main { flex: 1; display: flex; min-height: 0; }
+      .help-nav { width: 170px; flex: none; display: flex; flex-direction: column; gap: 4px; padding: 10px; border-right: 1px solid #444; background: #1d1b26; }
+      .help-topic {
+        font: inherit; font-size: 13px; text-align: left; cursor: pointer; padding: 8px 10px; border-radius: 6px;
+        color: #ddd; background: none; border: 2px solid transparent;
+      }
+      .help-topic:hover { background: #2a2836; }
+      .help-topic.active { color: #1d1b26; background: #f2a7c3; border-color: #f2a7c3; font-weight: bold; }
+      .help-text { flex: 1; overflow-y: auto; padding: 10px 22px 18px; font-family: "BunnyChat", system-ui, sans-serif; font-size: 14px; line-height: 1.55; color: #ddd; }
+      .help-text h3 { margin: 16px 0 6px; font-size: 15px; color: #f2a7c3; }
+      .help-text p { margin: 6px 0; }
+      .help-text ul { margin: 6px 0; padding-left: 20px; }
+      .help-text li { margin: 4px 0; }
+      .help-text b { color: #fff; }
+      .help-text kbd {
+        display: inline-block; min-width: 1.2em; padding: 0 5px; text-align: center; font-family: monospace; font-size: 12px; line-height: 1.5;
+        color: #eee; background: #3a3848; border: 1px solid #666; border-bottom-width: 2px; border-radius: 4px;
+      }
+      @media (max-width: 560px) {
+        .help-main { flex-direction: column; }
+        .help-nav { width: auto; flex-direction: row; border-right: none; border-bottom: 1px solid #444; }
+        .help-text { padding: 4px 14px 14px; }
+      }
+      .lang-select {
+        font: inherit; padding: 4px 6px; color: #eee; background: #2a2836; border: 1px solid #666; border-radius: 4px;
+      }
+      #lobby-lang { position: absolute; top: 12px; right: 12px; }
+
+      /* ---------- HUD: inventory panel (right) + quick-access bar (bottom) ---------- */
+      :root { --ui-bg: rgba(20, 20, 28, 0.88); --ui-line: #555; --ui-accent: #f2a7c3; }
+
+      /* Small HUD windows (minimap, inventory): see src/ui/window.ts */
+      #ui-dock {
+        position: fixed; top: 10px; right: 8px; max-height: calc(100vh - 100px);
+        display: flex; flex-direction: column; align-items: flex-end; gap: 10px; pointer-events: none;
+      }
+      .ui-window {
+        width: 204px; display: flex; flex-direction: column; box-sizing: border-box; min-height: 0;
+        background: var(--ui-bg); border: 2px solid var(--ui-line); border-radius: 10px;
+        font-size: 12px; user-select: none; overflow: hidden; pointer-events: auto; flex-shrink: 0;
+      }
+      #ui-dock > #inventory { flex-shrink: 1; min-height: 150px; } /* if space runs out, the inventory list scrolls */
+      .ui-window.floating { position: fixed; z-index: 5; } /* raised further when grabbed */
+      .ui-window.dragging { opacity: 0.85; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
+      .ui-window-bar {
+        display: flex; justify-content: space-between; padding: 4px 8px; cursor: grab; touch-action: none; flex-shrink: 0;
+        background: #222; border-bottom: 2px solid var(--ui-line); font-weight: bold;
+      }
+      .ui-window.dragging .ui-window-bar { cursor: grabbing; }
+      .ui-window.collapsed .ui-window-bar { border-bottom: none; }
+      .ui-window.collapsed .ui-window-body { display: none; }
+      .ui-window-toggle { color: #ccc; }
+      .ui-window-body { display: flex; flex-direction: column; min-height: 0; }
+
+      /* Stats window (src/ui/statsWindow.ts) */
+      .stats { padding: 6px 8px 8px; }
+      .stats-row, .stats-hp { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+      .stats-row > span:first-child, .stats-hp > span:first-child {
+        width: 98px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .stats-row b, .stats-hp b { margin-left: auto; }
+      .pips { display: inline-flex; gap: 1px; }
+      .pips i { width: 5px; height: 8px; background: #3a3848; border-radius: 1px; }
+      .pips i.on { background: #f2a7c3; }
+      .hp-bar { flex: 1; height: 8px; background: #3a3848; border-radius: 4px; overflow: hidden; }
+      .hp-bar span { display: block; height: 100%; background: #e05a5a; }
+      .hp-bar.fatigue-bar span { background: #e6b94a; }
+      .hp-bar.hunger-bar { background: #5c1a1a; }
+      .hp-bar.hunger-bar span { background: #4caf50; }
+      .stats-sep { border-top: 1px solid #444; margin: 5px 0; }
+      .stats-note { color: #8a879a; font-size: 10px; margin-top: 4px; }
+
+      .minimap-frame { position: relative; width: 200px; height: 200px; margin: 2px auto; }
+      .minimap-canvas { width: 100%; height: 100%; image-rendering: pixelated; display: block; }
+      .minimap-dot {
+        position: absolute; width: 6px; height: 6px; margin: -4px 0 0 -4px; border-radius: 50%;
+        background: #ff0000; border: 1px solid #fff;
+      }
+
+      .inv-filter {
+        margin: 6px; padding: 4px 6px; font: inherit; color: #eee; background: #2a2836;
+        border: 1px solid var(--ui-line); border-radius: 4px;
+      }
+      .inv-types {
+        display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; padding: 0 6px 6px;
+        border-bottom: 2px solid var(--ui-line);
+      }
+      .inv-type {
+        aspect-ratio: 1; padding: 0; font-size: 13px; cursor: pointer; line-height: 1;
+        background: #2a2836; border: 1px solid var(--ui-line); border-radius: 3px;
+      }
+      .inv-type:hover { border-color: #999; }
+      .inv-type.active { border-color: var(--ui-accent); background: #4a3040; }
+      .inv-row { display: grid; grid-template-columns: 1fr 58px; gap: 6px; padding: 3px 8px; }
+      .inv-head { padding-top: 6px; }
+      .inv-sort {
+        all: unset; cursor: pointer; font-weight: bold; color: #ccc;
+      }
+      .inv-sort:hover { color: #fff; }
+      .inv-list { overflow-y: auto; padding-bottom: 6px; min-height: 60px; }
+      .inv-list .inv-row { cursor: grab; }
+      .inv-list .inv-row:hover { background: rgba(255, 255, 255, 0.08); }
+      .inv-list .inv-row.picked { background: #e6b94a; color: #1d1b26; font-weight: bold; } /* clicked item: Shift+1/2 puts it in a slot */
+      .inv-empty { padding: 6px 8px; color: #888; }
+      .inv-list .inv-row.equipped:not(.picked) { color: #9fdc9f; }
+      .inv-badge {
+        margin-left: 5px; padding: 0 3px; font-size: 9px; border-radius: 3px;
+        background: #3c5a3c; color: #dff5df; vertical-align: 1px;
+      }
+      .inv-row.picked .inv-badge { background: #1d1b26; color: #e6b94a; }
+
+      #hotbar {
+        position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%);
+        display: flex; gap: 8px; user-select: none;
+      }
+      /* Chat input (T), above the vitals bars (src/ui/chat.ts) */
+      #chat {
+        position: fixed; left: 50%; bottom: 162px; transform: translateX(-50%); z-index: 8;
+        width: 400px; max-width: calc(100vw - 32px); display: flex; align-items: center; gap: 6px;
+        padding: 6px 8px; background: rgba(20, 20, 28, 0.92); border: 2px solid #f2a7c3; border-radius: 8px;
+      }
+      #chat[hidden] { display: none; }
+      #chat input { flex: 1; font: 600 15px "BunnyChat", sans-serif; padding: 4px 6px; color: #eee; background: #2a2836; border: 1px solid #555; border-radius: 4px; outline: none; }
+      .chat-count { font-size: 11px; color: #8a879a; min-width: 48px; text-align: right; }
+
+      /* HP + fatigue bars just above the hotbar */
+      #vitals {
+        position: fixed; left: 50%; bottom: 84px; transform: translateX(-50%);
+        width: 240px; display: flex; flex-direction: column; gap: 3px; pointer-events: none;
+      }
+      .vital {
+        position: relative; height: 16px; border-radius: 4px; overflow: hidden;
+        background: rgba(20, 20, 28, 0.85); border: 1px solid #555;
+      }
+      .vital-fill { position: absolute; inset: 0 auto 0 0; transition: width 0.15s; }
+      .vital.hp .vital-fill { background: #c94848; }
+      .vital.fatigue .vital-fill { background: #c99a2e; }
+      .vital.hunger { background: #5c1a1a; } /* the missing (hungry) part is dark red */
+      .vital.hunger .vital-fill { background: #4caf50; } /* full part is green */
+      .vital-text {
+        position: relative; display: block; text-align: center; font-size: 12px; line-height: 16px;
+        color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000;
+      }
+      .slot {
+        position: relative; width: 64px; height: 64px; box-sizing: border-box;
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: var(--ui-bg); border: 2px solid var(--ui-line); border-radius: 8px; cursor: pointer;
+      }
+      .slot.selected { border-color: var(--ui-accent); }
+      .slot.drop-ok { border-color: #7fe07f; background: #2f4a33; }
+      .slot.drop-bad { border-color: #e06060; }
+      .slot.refused { animation: refuse 0.4s; }
+      @keyframes refuse { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); border-color: #e06060; }
+                          75% { transform: translateX(3px); border-color: #e06060; } }
+      #hotbar .slot.pocket { border-style: dashed; } /* belt pockets */
+      .slot[draggable="true"] { cursor: grab; }
+      .slot-key { position: absolute; top: 2px; left: 5px; font-size: 10px; color: #aaa; }
+      .slot-icon { font-size: 22px; line-height: 1; }
+      .slot-icon img { width: 32px; height: 32px; display: block; object-fit: contain; image-rendering: pixelated; } /* item pictures */
+      .slot.small .slot-icon img { width: 24px; height: 24px; }
+      .slot-label {
+        font-size: 9px; max-width: 58px; margin-top: 3px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      #hotbar .slot.empty .slot-label { color: #666; }
+
+      /* Outfit window: mannequin with small slot squares (positions in src/ui/outfit.ts) */
+      .outfit { position: relative; width: 200px; height: 292px; margin: 2px auto 4px; }
+      .outfit-mannequin { position: absolute; inset: 0; color: #5d5a6e; }
+      .slot.small {
+        position: absolute; width: 30px; height: 30px; border-radius: 5px; border-width: 1px;
+        background: rgba(42, 40, 54, 0.95);
+      }
+      .slot.small .slot-key { display: none; }
+      .slot.small .slot-icon { font-size: 15px; }
+      .slot.small .slot-label { display: none; }
+      .slot.small.empty .slot-label { display: block; font-size: 8px; color: #8a879a; margin: 0; }
+      #lobby { z-index: 10; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <div id="lobby">
+      <div id="lobby-lang"></div>
+      <h1>🐰 bunnyQuest</h1>
+      <input id="name" maxlength="16" />
+      <label id="ff-row"><input type="checkbox" id="ff" /> <span id="ff-label"></span></label>
+      <button id="play"></button>
+      <div class="err" id="err"></div>
+    </div>
+    <!-- Texts are filled in from src/i18n (English, Serbian, Hungarian) -->
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
