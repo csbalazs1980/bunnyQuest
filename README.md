@@ -53,16 +53,16 @@ server closes every room).
   | Maximum blood | comically over the top: every hit sprays big blobs 4–5 tiles around, huge stains and pools that stay 45 s, trailing splotches below 75% HP |
 
   All of it is pixel squares in the game's style; at most 400 stains at a time. Code and levels: `client/src/blood.ts`.
-- The game is in **English, Serbian (Cyrillic) and Hungarian**. Pick the language on the start page (top-right)
+- The game is in **English, Serbian (Cyrillic), Hungarian and Romanian**. Pick the language on the start page (top-right)
   or in Options; it switches instantly, even in the middle of a game, and is remembered. On the first visit
   the browser's language is used.
-- Even the comic attack words are translated (BAM! / БАМ! / BUMM!): the server only sends *which* word,
+- Even the comic attack words are translated (BAM! / БАМ! / BUMM! / BUF!): the server only sends *which* word,
   each player sees it in their own language.
 
-All texts live in `client/src/i18n/`: `en.ts` is the master list, `sr.ts` and `hu.ts` are typed against it,
+All texts live in `client/src/i18n/`: `en.ts` is the master list, `sr.ts`, `hu.ts` and `ro.ts` are typed against it,
 so a missing or extra key in a translation is a compile error. In code, texts come from `t("key")`
 (item names: `tItem(id)` using the ids in `ITEM_DEFS`). To add a language: copy `hu.ts`, translate it, and
-add it to `LANGUAGES` in `client/src/i18n/index.ts`. To add a text: add the key to all three files.
+add it to `LANGUAGES` in `client/src/i18n/index.ts`. To add a text: add the key to all four files.
 
 ## Chat
 Press **T**, type a message (max 200 characters) and press **Enter**; **Esc** cancels. The message pops up
@@ -151,7 +151,9 @@ Actually fighting other bunnies is not in the game yet.
 - Easy on purpose: 12 HP (two sword hits), bite attack 3 (≈3 HP without armor, nothing through a sword
   block), one bite per 1.2 s. They can't block.
 - Killed rats flip over and lie there for 1 minute, then fade away over 3 s (crusaders too: they stay fallen
-  over; `CORPSE_STAYS_MS` / `CORPSE_FADE_MS` in `GameScene`). A new rat appears somewhere else after 60 s.
+  over; `CORPSE_MS` in `shared/enemies.ts`, `CORPSE_FADE_MS` in `GameScene`). Meanwhile the server remembers
+  the body, so **Necromancy** can raise it (see Magic). A new rat appears somewhere else after 60 s.
+- Rats and crusaders also go for zombies (they count as foes, like bunnies).
 - Everything runs on the server (`server/src/rats.ts`); positions are whole pixels so idle rats send nothing.
   All numbers are in `RAT` in `shared/enemies.ts`. The client draws them in `GameScene` (`makeRatTexture`).
 
@@ -233,10 +235,33 @@ Friend or foe alike, but not animals. It isn't an attack, so protected (just-res
 Numbers: `HEALING` in `shared/magic.ts`; each spell's area (`radius`), whether it is an attack (`hostile`)
 and aim color are in `SPELLS`; both spells reach `SPELL_RANGE_TILES` (8).
 
+**Necromancy** = **Mor** (death, a post with a branch rising from its middle to the right) + **Ul** (life)
++ **Ka** (create). It isn't aimed (`self` in `SPELLS`): press its key next to a dead body. The body closest
+to the caster within **2 tiles** (`NECROMANCY.reach`) rises from a green mist as a zombie that serves the
+caster for **10 minutes**, then crumbles to dust. No body in reach: "No dead body close enough!" and the
+spell stays charged. Zombie rat, zombie knight and zombie King Arthur: rotten, rusty and mossy, with glowing
+green eyes (drawn in code in `GameScene`, textures `zrat`, `zknight`, `zking`).
+- Zombies **follow** their master in a ring around it. When the master or one of them is attacked, they go
+  for the attacker (a fight more than 8 tiles from the master is given up). A zombie that got far behind
+  (e.g. its master woke up in the start town) rises again next to the master.
+- **N** (or the 🧟 button, which shows how many you have, next to the spell slots) aims like a spell: click
+  a tile up to 12 tiles away and the whole army marches there and attacks anybody on that tile or the 8
+  around it. They **hold that place** (fighting whoever comes, and anything attacking them right there) until
+  the master walks within **2 tiles** of them: then that squad follows again.
+- A zombie fights like it did alive (same HP, attack, reach and swing speed). Killed zombies leave a body
+  too, which can be raised again.
+- Never against their master or its other zombies; other bunnies and their zombies only with friendly fire
+  on (with it off a bunny can't hit other bunnies' zombies either). Bunnies and zombies walk through each
+  other, so an army can't box you in; rats and crusaders bump into zombies as usual.
+- If the master leaves the game, its zombies crumble.
+- Numbers: `ZOMBIE`, `ARMY`, `CORPSE_MS` in `shared/enemies.ts`. Server: `server/src/zombies.ts` (follow /
+  defend / order) and `GameRoom` (bodies, `raiseDead`, who may hurt whom: `canHarm`). Effects: `raise`,
+  `crumble`, `orderMark` in `client/src/magicFx.ts`.
+
 The **Spellbook** window (**P**, starts minimized) has a drop-down with every spell (🔒 = you don't know all
 its runes yet); pick one to see what it does and its runes in order, top to bottom (the choice is
 remembered). The runes you know, with pictures and meanings, are in **Help → Magic** (a `{{runes}}` line
-in a help text shows them). For now every bunny starts knowing all six runes (`STARTER_RUNES`).
+in a help text shows them). For now every bunny starts knowing all seven runes (`STARTER_RUNES`).
 
 **How a drawing is read** (`shared/runes.ts`): tiny strokes are dropped; strokes whose heights overlap are
 grouped into one rune, and the groups are ordered top to bottom; each group is matched against every rune

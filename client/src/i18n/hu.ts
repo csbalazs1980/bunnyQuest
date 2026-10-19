@@ -153,6 +153,10 @@ export const hu: Dict = {
   "rune.tor.meaning": "adás",
   "rune.sel": "Sel",
   "rune.sel.meaning": "gyógyulás",
+  "spell.necromancy": "Nekromancia",
+  "spell.necromancy.desc": "A hozzád legközelebbi holttest (legfeljebb 2 mezőre) zombiként feltámad, és 10 percig szolgál téged. Nem kell célozni: egy holttest mellett nyomd meg a gombját.",
+  "rune.mor": "Mor",
+  "rune.mor.meaning": "halál",
   "magic.scrollHint": "Rajzold a rúnákat fentről lefelé · engedd el az F-et a varázsláshoz · jobb klikk: tekercs törlése",
   "magic.reading": "A rúnák olvasása…",
   "magic.unknown": "?",
@@ -164,6 +168,10 @@ export const hu: Dict = {
   "magic.fail.busy": "Most nem!",
   "magic.aimHint": "{spell}: kattints egy mezőre, hogy oda varázsold · jobb klikk vagy Esc: mégse",
   "magic.tooFar": "Túl messze!",
+  "magic.noBody": "Nincs elég közel holttest!",
+  "army.none": "Nincsenek élőhalottaid, akiknek parancsolhatnál",
+  "army.aimHint": "Élőhalott sereg: kattints egy mezőre, és odaküldöd őket · sétálj oda hozzájuk, hogy visszahívd őket · jobb klikk vagy Esc: mégse",
+  "army.button": "Az élőhalott sereged: {n} [N]\nNyomd meg az N-t vagy kattints, majd kattints egy mezőre: megtámadnak mindenkit rajta és körülötte.\nSétálj oda hozzájuk, és újra követnek.",
   "slot.spell": "{spell} [{key}]: {n} mp múlva elillan\nNyomd meg: {key}, vagy kattints a célzáshoz",
   "spellbook.pick": "Válassz egy varázslatot, hogy lásd, hogyan kell elvarázsolni",
   "spellbook.howTo": "Rajzold a tekercsre, fentről lefelé:",
@@ -220,7 +228,7 @@ A [W] [A] [S] [D] gombokkal vagy a nyilakkal sétálhatsz. Az utakon gyorsabban 
 A zöld éhségsáv lassan fogy. A jóllakott nyuszi idővel gyógyul, a nagyon éhes életerőt veszít. Egyél, ha lecsökken, de ha már jóllaktál, nem tudsz enni.
 
 ## Varázslás
-Tartsd lenyomva az [F] gombot, és kinyílik a varázstekercsed: rúnákat rajzolhatsz rá. A feltöltött varázslatok az [X] [C] [V] [B] helyekre kerülnek. Lásd a **Varázslás** témát.
+Tartsd lenyomva az [F] gombot, és kinyílik a varázstekercsed: rúnákat rajzolhatsz rá. A feltöltött varázslatok az [X] [C] [V] [B] helyekre kerülnek. Lásd a **Varázslás** témát. Az [N] gombbal egy mezőre küldheted az élőhalott seregedet (amit nekromanciával támasztottál fel).
 
 ## Csevegés
 Nyomd meg a [T] gombot, írd be az üzenetet, és nyomj [Enter]-t. Egy buborékban jelenik meg a nyuszid felett, mindenki láthatja. Az [Esc] megszakítja.`,
@@ -303,6 +311,13 @@ Rúnák: **Ka** (teremtés), **Ash** (tűz), **Dom** (robbanás). Nyomd meg a go
 Rúnák: **Ul** (élet, két párhuzamos, \\ módon dőlő vonal), **Tor** (adás, egy T) és **Sel** (gyógyulás, egy hosszú / és alsó felének dőlő rövid \\). Ugyanúgy célzod, mint a tűzgolyót, de a cél egyetlen mező: kattints, és arra a mezőre varázsolod. Mindenki, aki ott áll, életerőt kap vissza, te is, így a saját meződre célozva magadat gyógyítod.
 - Minél több az **Intelligenciád**, annál többet gyógyít. Senkit sem gyógyít a teljes életereje fölé.
 - Barátra és ellenségre egyaránt hat (állatokra nem), és akkor is használhatod, amikor felébredés után még védett vagy.
+
+## Nekromancia
+Rúnák: **Mor** (halál, egy oszlop, amelynek a közepéből jobbra felfelé ág nő), **Ul** (élet) és **Ka** (teremtés). Nem kell célozni: állj egy elesett patkány vagy keresztes lovag mellé (a megölt ellenfelek egy percig a földön maradnak), és nyomd meg a gombját. A legközelebbi holttest 2 mezőn belül zombiként feltámad, **10 percig** szolgál téged, aztán porrá omlik. Ha nincs elég közel holttest, a varázslat a helyén marad.
+- A zombijaid mindenhová követnek. Ha téged vagy valamelyiküket megtámadják, a támadóra rontanak.
+- Nyomd meg az [N]-t (vagy kattints a varázslathelyek melletti 🧟 gombra), majd kattints egy mezőre: az egész sereged odavonul, és megtámad mindenkit azon a mezőn és a körülötte lévő 8 mezőn. Addig tartják a helyet, amíg oda nem sétálsz hozzájuk; akkor újra követnek.
+- Egy zombi ugyanolyan jól harcol, mint élve. A patkányok és a keresztesek is harcolnak a zombik ellen, és egy elesett zombi újra feltámasztható.
+- Kikapcsolt baráti tűznél a zombik soha nem bántják a nyuszikat és más nyuszik zombijait. A nyuszik átsétálnak a zombikon, így a sereged nem tud bekeríteni. Ha kilépsz a játékból, a zombijaid porrá omlanak.
 
 ## A rúnáid
 Ezeket a rúnákat ismered, a jelentésükkel együtt. Egy varázslathoz az összes rúnája kell.

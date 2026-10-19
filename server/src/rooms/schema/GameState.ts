@@ -66,9 +66,13 @@ export class Player extends Schema {
   lastCastAt = 0; // last time a scroll was read (rate limit)
 }
 
-/** An enemy: "rat", or a crusader ("king" / "knight"), see shared/enemies.ts. Positions are whole pixels to keep updates small. */
+/**
+ * An enemy: "rat", a crusader ("king" / "knight"), or a zombie raised with Necromancy ("zrat", "zknight",
+ * "zking", serving the bunny `owner`), see shared/enemies.ts. Positions are whole pixels to keep updates small.
+ */
 export class Enemy extends Schema {
   @type("string") kind = "rat";
+  @type("string") owner = ""; // zombies: the session id of the bunny they serve
   @type("number") x = 0;
   @type("number") y = 0;
   @type("boolean") faceLeft = false;
@@ -79,7 +83,7 @@ export class Enemy extends Schema {
   fy = 0;
   dirX = 0; // current walking direction (0, 0 = resting)
   dirY = 0;
-  until = 0; // when to pick a new direction / rest
+  until = 0; // when to pick a new direction / rest (zombies: when they crumble)
   target = ""; // session id of the bunny it is chasing ("" = none)
   lastBiteAt = 0;
   band = -1; // crusaders: which band it marches with (server/src/crusaders.ts)

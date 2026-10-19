@@ -163,6 +163,10 @@ export const en = {
   "rune.tor.meaning": "give",
   "rune.sel": "Sel",
   "rune.sel.meaning": "mend",
+  "spell.necromancy": "Necromancy",
+  "spell.necromancy.desc": "The dead body closest to you (within 2 tiles) rises as a zombie and serves you for 10 minutes. Not aimed: press its key next to a body.",
+  "rune.mor": "Mor",
+  "rune.mor.meaning": "death",
   "magic.scrollHint": "Draw the runes from top to bottom · let go of F to cast · right-click wipes the scroll",
   "magic.reading": "Reading the runes…",
   "magic.unknown": "?",
@@ -174,6 +178,10 @@ export const en = {
   "magic.fail.busy": "Not now!",
   "magic.aimHint": "{spell}: click a tile to cast it there · right-click or Esc to cancel",
   "magic.tooFar": "Too far!",
+  "magic.noBody": "No dead body close enough!",
+  "army.none": "You have no undead to command",
+  "army.aimHint": "Undead army: click a tile to send them there · walk up to them to call them back · right-click or Esc to cancel",
+  "army.button": "Your undead army: {n} [N]\nPress N or click, then click a tile: they attack anybody on it or around it.\nWalk up to them to make them follow you again.",
   "slot.spell": "{spell} [{key}]: fades in {n} s\nPress {key} or click to aim it",
   "spellbook.pick": "Pick a spell to see how to cast it",
   "spellbook.howTo": "Draw on the scroll, top to bottom:",
@@ -231,7 +239,7 @@ Walk with [W] [A] [S] [D] or the arrow keys. Roads make you faster. Forests, hil
 The green hunger bar slowly empties. A well-fed bunny heals over time; a starving one loses health. Eat when it gets low, but you can't eat when you are already full.
 
 ## Magic
-Hold [F] to open your magic scroll and draw runes on it; spells you charge appear in the [X] [C] [V] [B] slots. See the **Magic** topic.
+Hold [F] to open your magic scroll and draw runes on it; spells you charge appear in the [X] [C] [V] [B] slots. See the **Magic** topic. Press [N] to send your undead army (raised with Necromancy) to a tile.
 
 ## Chat
 Press [T], type your message and press [Enter]. It pops up in a bubble over your bunny for everyone to see. [Esc] cancels.`,
@@ -314,6 +322,13 @@ Runes: **Ka** (create), **Ash** (fire), **Dom** (burst). Press its key and a tar
 Runes: **Ul** (life, two parallel lines leaning like \\), **Tor** (give, a T) and **Sel** (mend, a long / with a short \\ against its lower half). Aim it like the fireball, but the target is a single tile: click to cast it on that tile. Every bunny standing there gets health back, and that includes you, so aim at your own tile to heal yourself.
 - The more **Intelligence** you have, the more it heals. It never heals more than a bunny's full health.
 - It works on friends and foes alike (but not on animals), and you can use it even while you are still protected after waking up.
+
+## Necromancy
+Runes: **Mor** (death, a post with a branch rising to the right), **Ul** (life) and **Ka** (create). It isn't aimed: stand next to a fallen rat or crusader (killed ones lie on the ground for a minute) and press its key. The closest body within 2 tiles rises as a zombie that serves you for **10 minutes**, then crumbles to dust. No body close enough: the spell stays in its slot.
+- Your zombies follow you around. When you or one of them is attacked, they go for the attacker.
+- Press [N] (or click the 🧟 button by the spell slots) and click a tile: your whole army marches there and attacks anybody on that tile or the 8 around it. They hold that place until you walk up to them; then they follow you again.
+- A zombie fights as well as it did alive. Rats and crusaders fight zombies too, and a fallen zombie can be raised again.
+- With friendly fire off, zombies never hurt bunnies or other bunnies' zombies. Bunnies walk through zombies, so your army can't box you in. If you leave the game, your zombies crumble.
 
 ## Your runes
 These are the runes you know, with what they mean. A spell needs all of its runes.

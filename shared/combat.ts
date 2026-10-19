@@ -143,7 +143,11 @@ export type CombatFx =
   // `id` threw a fireball from (x, y) to tile (tx, ty); it lands and explodes after `ms` (shared/magic.ts)
   | { kind: "fireball"; id: string; x: number; y: number; tx: number; ty: number; ms: number }
   // `id` cast healing on tile (tx, ty); `healed`: the bunnies it healed (how much is not sent)
-  | { kind: "heal"; id: string; tx: number; ty: number; healed: string[] };
+  | { kind: "heal"; id: string; tx: number; ty: number; healed: string[] }
+  // `id` cast Necromancy: the body of `corpse` (a killed enemy's id) rose as the zombie `zombie`
+  | { kind: "raise"; id: string; corpse: string; zombie: string }
+  // zombie `id` crumbled to dust at (x, y) (its time was up, or its master left)
+  | { kind: "crumble"; id: string; x: number; y: number };
 
 /** Cleans an angle (radians) and click distance coming from a client. Returns null if invalid. */
 export function cleanAim(angle: unknown, dist: unknown): { angle: number; dist: number } | null {

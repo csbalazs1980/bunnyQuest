@@ -3,17 +3,19 @@
 import { en, type Dict } from "./en";
 import { sr } from "./sr";
 import { hu } from "./hu";
+import { ro } from "./ro";
 import { itemDef } from "../../../shared/items";
 
 export const LANGUAGES = [
   { code: "en", name: "English" },
   { code: "sr", name: "Српски" },
   { code: "hu", name: "Magyar" },
+  { code: "ro", name: "Română" },
 ] as const;
 export type Lang = (typeof LANGUAGES)[number]["code"];
 export type TKey = keyof Dict;
 
-const DICTS: Record<Lang, Dict> = { en, sr, hu };
+const DICTS: Record<Lang, Dict> = { en, sr, hu, ro };
 const STORAGE_KEY = "bq-lang";
 
 function initialLanguage(): Lang {

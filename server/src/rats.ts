@@ -1,7 +1,7 @@
-// Rats: wander around looking for food, chase bunnies that come within 4 tiles and bite them.
+// Rats: wander around looking for food, chase bunnies (and zombies) that come within 4 tiles and bite them.
 // Called by GameRoom every tick. Numbers: shared/enemies.ts.
 import { MapSchema } from "@colyseus/schema";
-import { Enemy, Player } from "./rooms/schema/GameState.js";
+import { Enemy } from "./rooms/schema/GameState.js";
 import { RAT, RAT_SPAWN_TERRAIN } from "../../shared/enemies.js";
 import type { Body, World } from "../../shared/world.js";
 
@@ -12,8 +12,8 @@ export class Rats {
   constructor(
     private world: World,
     private enemies: MapSchema<Enemy>,
-    /** A rat bites a bunny (the room decides block / damage and shows the effects). */
-    private bite: (ratId: string, rat: Enemy, targetId: string, target: Player) => void
+    /** A rat bites a bunny or a zombie (the room decides block / damage and shows the effects). */
+    private bite: (ratId: string, rat: Enemy, targetId: string) => void
   ) {
     for (let i = 0; i < RAT.count; i++) this.spawn();
   }
@@ -51,8 +51,11 @@ export class Rats {
     return true;
   }
 
-  /** One tick. `bodies`: every living character (bunnies and rats), which rats can't walk into. */
-  update(dt: number, now: number, players: MapSchema<Player>, bodies: readonly Body[] = []) {
+  /**
+   * One tick. `foes`: who rats go for (bunnies that can be hurt right now, and zombies), by id.
+   * `bodies`: every living character, which rats can't walk into.
+   */
+  update(dt: number, now: number, foes: ReadonlyMap<string, Body>, bodies: readonly Body[] = []) {
     // Dead rats coming back
     const due = this.respawns.filter((t) => t <= now).length;
     if (due) {
@@ -61,16 +64,16 @@ export class Rats {
     }
 
     this.enemies.forEach((rat, id) => {
-      if (rat.kind !== "rat") return; // crusaders have their own brain (crusaders.ts)
-      // Keep chasing the current target while it's in reach, else look for the nearest bunny nearby
-      let target = rat.target ? players.get(rat.target) : undefined;
-      if (target && (!fair(target, now) || dist(rat, target) > RAT.giveUpRange)) target = undefined;
+      if (rat.kind !== "rat") return; // crusaders and zombies have their own brains (crusaders.ts, zombies.ts)
+      // Keep chasing the current target while it's in reach, else look for the nearest bunny or zombie nearby
+      let target = rat.target ? foes.get(rat.target) : undefined;
+      if (target && dist(rat, target) > RAT.giveUpRange) target = undefined;
       if (!target) {
         rat.target = "";
         let best = RAT.aggroRange;
-        for (const [pid, p] of players.entries()) {
+        for (const [pid, p] of foes) {
           const d = dist(rat, p);
-          if (d <= best && fair(p, now)) {
+          if (d <= best) {
             best = d;
             target = p;
             rat.target = pid;
@@ -92,7 +95,7 @@ export class Rats {
         if (d <= RAT.biteRange && now - rat.lastBiteAt >= RAT.biteCooldownMs) {
           rat.lastBiteAt = now;
           rat.faceLeft = target.x < rat.fx;
-          this.bite(id, rat, rat.target, target);
+          this.bite(id, rat, rat.target);
         }
       } else {
         // Wander: walk a bit in a random direction, rest a bit, repeat. Towns smell of bunnies: keep out.
@@ -128,6 +131,3 @@ export class Rats {
 }
 
 const dist = (rat: Enemy, p: { x: number; y: number }) => Math.hypot(p.x - rat.fx, p.y - rat.fy);
-
-/** Rats leave knocked-out and freshly respawned (protected) bunnies alone. */
-const fair = (p: Player, now: number) => !p.deadUntil && p.protectedUntil <= now;

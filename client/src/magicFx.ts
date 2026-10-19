@@ -81,14 +81,15 @@ export class MagicFx {
     worldX = 0,
     worldY = 0,
     radius = 1,
-    spellColor = 0xff8a2a
+    spellColor = 0xff8a2a,
+    range?: number // how far the target may be (default: a spell's reach)
   ): { tx: number; ty: number; ok: boolean } | null {
     this.aim.clear();
     this.aim.setVisible(!!from);
     if (!from) return null;
     const tx = Math.floor(worldX / TILE_SIZE);
     const ty = Math.floor(worldY / TILE_SIZE);
-    const ok = inSpellRange(from.x, from.y, tx, ty);
+    const ok = inSpellRange(from.x, from.y, tx, ty, range);
     const color = ok ? spellColor : 0xe03030;
     const r = radius;
     const x0 = (tx - r) * TILE_SIZE;
@@ -190,6 +191,59 @@ export class MagicFx {
       this.scene.tweens.add({ targets: s, scale: { from: 1.15, to: 1 }, duration: 380, ease: "Back.easeOut" });
       for (let i = 0; i < 5; i++) this.scene.time.delayedCall(120 + i * 90, () => s.active && this.cross(s.x + Phaser.Math.Between(-14, 14), s.y - 8));
     }
+  }
+
+  /**
+   * Necromancy: a body rises at (x, y). Sickly green mist wells up from the ground, clods of earth fly,
+   * and a few green wisps drift up.
+   */
+  raise(x: number, y: number) {
+    const ground = this.scene.add.graphics().setDepth(-0.25);
+    for (let i = 0; i < 18; i++) {
+      ground.fillStyle(Phaser.Utils.Array.GetRandom([0x3a2a1a, 0x4a3a22, 0x2a1e12]), 0.75);
+      ground.fillRect(x + Phaser.Math.Between(-22, 18), y + Phaser.Math.Between(-6, 10), 4 * Phaser.Math.Between(1, 2), 4);
+    }
+    this.scene.tweens.add({ targets: ground, alpha: 0, delay: 2500, duration: 1500, onComplete: () => ground.destroy() });
+    for (let i = 0; i < 26; i++) {
+      this.scene.time.delayedCall(i * 35, () => {
+        const size = Phaser.Math.Between(3, 6);
+        const color = Phaser.Utils.Array.GetRandom([0x9be04a, 0x6fae3a, 0xc8ff7a, 0x4a6a2a]);
+        const m = this.scene.add.rectangle(x + Phaser.Math.Between(-20, 20), y + Phaser.Math.Between(-4, 8), size, size, color, 0.85).setDepth(FX_DEPTH);
+        this.scene.tweens.add({
+          targets: m, x: m.x + Phaser.Math.Between(-10, 10), y: m.y - Phaser.Math.Between(30, 70), alpha: 0,
+          duration: Phaser.Math.Between(700, 1200), ease: "Sine.easeOut", onComplete: () => m.destroy(),
+        });
+      });
+    }
+    for (let i = 0; i < 8; i++) {
+      const a = Math.PI + Math.random() * Math.PI; // clods fly up and out
+      const v = Phaser.Math.Between(18, 40);
+      const c = this.scene.add.rectangle(x, y + 4, 4, 4, 0x3a2a1a).setDepth(FX_DEPTH);
+      this.scene.tweens.add({ targets: c, x: x + Math.cos(a) * v, y: y + 4 + Math.sin(a) * v * 0.7, alpha: 0, duration: 500, ease: "Quad.easeOut", onComplete: () => c.destroy() });
+    }
+  }
+
+  /** A zombie's time is up: it crumbles into a puff of grey-brown dust. */
+  crumble(x: number, y: number) {
+    for (let i = 0; i < 22; i++) {
+      const color = Phaser.Utils.Array.GetRandom([0x8a8070, 0x6a6050, 0xa89a80, 0x5f8a3a]);
+      const d = this.scene.add.rectangle(x + Phaser.Math.Between(-12, 12), y - Phaser.Math.Between(0, 30), 4, 4, color).setDepth(FX_DEPTH);
+      this.scene.tweens.add({
+        targets: d, x: d.x + Phaser.Math.Between(-18, 18), y: y + Phaser.Math.Between(-4, 8), alpha: 0,
+        duration: Phaser.Math.Between(500, 900), ease: "Quad.easeIn", onComplete: () => d.destroy(),
+      });
+    }
+  }
+
+  /** Where we just sent our undead army (only we see it): the 3×3 tiles blink a few times. */
+  orderMark(tx: number, ty: number, radius: number) {
+    const x0 = (tx - radius) * TILE_SIZE;
+    const y0 = (ty - radius) * TILE_SIZE;
+    const size = (2 * radius + 1) * TILE_SIZE;
+    const g = this.scene.add.graphics().setDepth(-0.4);
+    g.fillStyle(0x9be04a, 0.18).fillRect(x0, y0, size, size);
+    g.lineStyle(3, 0x9be04a, 0.9).strokeRect(x0 + 1, y0 + 1, size - 2, size - 2);
+    this.scene.tweens.add({ targets: g, alpha: 0, duration: 260, yoyo: true, repeat: 2, onComplete: () => g.destroy() });
   }
 
   /** A little green pixel cross floating up and fading. */

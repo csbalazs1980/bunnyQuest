@@ -42,8 +42,8 @@ export class Crusaders {
   constructor(
     private world: World,
     private enemies: MapSchema<Enemy>,
-    /** A crusader swings at a bunny (the room decides block / damage and shows the effects). */
-    private strike: (id: string, e: Enemy, targetId: string, target: Player, attack: number) => void,
+    /** A crusader swings at a bunny or a zombie (the room decides block / damage and shows the effects). */
+    private strike: (id: string, e: Enemy, targetId: string, target: Body, attack: number) => void,
     /** A crusader shouts something (shown in a speech bubble, translated on each client). */
     private shout: (id: string, line: Shout) => void
   ) {
@@ -116,7 +116,11 @@ export class Crusaders {
     return out;
   }
 
-  update(dt: number, now: number, players: MapSchema<Player>, bodies: readonly Body[] = []) {
+  /**
+   * One tick. `foes`: who they charge (bunnies that can be hurt right now, and zombies: unholy monsters),
+   * by id; `players` to notice when the bunny they charged is knocked out (time to cheer).
+   */
+  update(dt: number, now: number, players: MapSchema<Player>, foes: ReadonlyMap<string, Body>, bodies: readonly Body[] = []) {
     for (const r of this.respawns.filter((r) => r.at <= now)) this.spawnBand(r.band);
     this.respawns = this.respawns.filter((r) => r.at > now);
 
@@ -124,7 +128,7 @@ export class Crusaders {
       const alive = this.alive(band);
       if (!alive.length) return;
       const [leaderId, leader] = alive[0];
-      const near = nearestBunny(leader, players, now);
+      const near = nearestFoe(leader, foes);
 
       // ---- decide what the band does ----
       if (band.broken) {
@@ -132,11 +136,11 @@ export class Crusaders {
         else if (band.state === "flee" && (!near || near.dist > C.safeAt)) band.state = "march";
       } else {
         if (band.state === "charge") {
-          const t = players.get(band.target);
-          if (t?.deadUntil) {
-            this.celebrate(band, alive, now); // the monster is down!
+          const t = foes.get(band.target);
+          if (!t) {
+            if (players.get(band.target)?.deadUntil) this.celebrate(band, alive, now); // the monster is down!
             band.state = "march";
-          } else if (!t || !fair(t, now) || dist(leader, t) > C.giveUpRange) band.state = "march";
+          } else if (dist(leader, t) > C.giveUpRange) band.state = "march";
         }
         if (band.state === "march" && near && near.dist <= C.aggroRange) {
           band.state = "charge";
@@ -144,7 +148,7 @@ export class Crusaders {
           if (leader.kind === "king") this.kingShouts(leaderId, leader, band, now, true);
         }
       }
-      const target = band.state === "charge" ? players.get(band.target) : undefined;
+      const target = band.state === "charge" ? foes.get(band.target) : undefined;
 
       // ---- the leader moves ----
       let dx = 0;
@@ -294,13 +298,10 @@ function slotPos(leader: { fx: number; fy: number }, heading: number, s: { back:
 
 const dist = (e: Enemy, p: { x: number; y: number }) => Math.hypot(p.x - e.fx, p.y - e.fy);
 
-/** Crusaders leave knocked-out and freshly respawned (protected) bunnies alone, like rats. */
-const fair = (p: Player, now: number) => !p.deadUntil && p.protectedUntil <= now;
-
-function nearestBunny(e: Enemy, players: MapSchema<Player>, now: number) {
-  let best: { id: string; p: Player; dist: number } | undefined;
-  for (const [id, p] of players.entries()) {
-    if (!fair(p, now)) continue;
+/** The closest of `foes` (bunnies that can be hurt right now, and zombies). */
+function nearestFoe(e: Enemy, foes: ReadonlyMap<string, Body>) {
+  let best: { id: string; p: Body; dist: number } | undefined;
+  for (const [id, p] of foes) {
     const d = dist(e, p);
     if (!best || d < best.dist) best = { id, p, dist: d };
   }

@@ -54,9 +54,50 @@ export const CRUSADERS = {
 export const SHOUTS = ["charge", "aaa", "retreat", "run", "victory", "fineDay", "lostMen", "triumph"] as const;
 export type Shout = (typeof SHOUTS)[number];
 
-/** Full health of an enemy kind (the client uses it for the bleeding trail). */
+/** Full health of an enemy kind (the client uses it for the bleeding trail). Zombies: like the living. */
 export function enemyMaxHp(kind: string): number {
-  if (kind === "king") return CRUSADERS.king.hp;
-  if (kind === "knight") return CRUSADERS.knight.hp;
+  const base = baseKind(kind);
+  if (base === "king") return CRUSADERS.king.hp;
+  if (base === "knight") return CRUSADERS.knight.hp;
   return RAT.hp;
 }
+
+// ---------------- the dead and the undead ----------------
+/** A killed enemy's body lies where it fell this long (it can be raised with Necromancy meanwhile), then fades. */
+export const CORPSE_MS = 60_000;
+
+/** The kinds that leave a body and what their zombie is called ("rat" → "zrat"). */
+export type LivingKind = "rat" | "knight" | "king";
+export const zombieKind = (kind: LivingKind) => `z${kind}`;
+export const isZombie = (kind: string) => kind === "zrat" || kind === "zknight" || kind === "zking";
+/** "zknight" → "knight"; living kinds stay as they are. */
+export const baseKind = (kind: string): LivingKind => (isZombie(kind) ? kind.slice(1) : kind) as LivingKind;
+
+/**
+ * Zombies (server/src/zombies.ts): a body raised with Necromancy serves the caster for 10 minutes, then
+ * crumbles to dust. It follows its master around; when the master (or one of the zombies) is attacked,
+ * the zombies go for the attacker. Each fights like it did alive (HP, attack, reach, swing speed).
+ */
+export const ZOMBIE = {
+  lifeMs: 10 * 60_000,
+  followSpeed: 240, // px/s at most, catching up with the master (they slow down near their spot)
+  chaseSpeed: 170, // px/s going for an enemy
+  ring: 56, // px: they gather around the master this far away (a bigger ring for every 6 more)
+  leash: 8 * TILE_SIZE, // a fight further than this from the master is given up (they come back)
+  lostAt: 14 * TILE_SIZE, // further than this from the master (e.g. after a respawn): they rise again next to it
+  rat: { hp: RAT.hp, attack: RAT.attack, reach: RAT.biteRange, cooldownMs: RAT.biteCooldownMs },
+  knight: { hp: CRUSADERS.knight.hp, attack: CRUSADERS.knight.attack, reach: CRUSADERS.hitRange, cooldownMs: CRUSADERS.hitCooldownMs },
+  king: { hp: CRUSADERS.king.hp, attack: CRUSADERS.king.attack, reach: CRUSADERS.hitRange, cooldownMs: CRUSADERS.hitCooldownMs },
+};
+
+/**
+ * The undead army (N): the master sends all its zombies to a tile; they attack anybody standing there or
+ * on the 8 tiles around it, and hold that place (attacking whoever comes) until the master walks up to
+ * them: then that whole squad follows the master again.
+ */
+export const ARMY = {
+  orderRange: 12 * TILE_SIZE, // how far away the target tile may be
+  radius: 1, // the target tile and the 8 around it
+  recall: 2 * TILE_SIZE, // the master this close to one of the squad: they all follow it again
+  engaged: 2 * TILE_SIZE, // a sent zombie keeps fighting someone this close to it, even outside the target area
+};

@@ -271,6 +271,9 @@
       @keyframes refuse { 0%, 100% { transform: none; } 25% { transform: translateX(-3px); border-color: #e06060; }
                           75% { transform: translateX(3px); border-color: #e06060; } }
       #hotbar .slot.pocket { border-style: dashed; } /* belt pockets */
+      #hotbar .slot.army { border-color: #6f9a3a; background: rgba(40, 56, 30, 0.92); } /* the undead army (N) */
+      #hotbar .slot.army.selected { border-color: #c8ff7a; }
+      #hotbar .slot[hidden] { display: none; }
       .slot[draggable="true"] { cursor: grab; }
       .slot-key { position: absolute; top: 2px; left: 5px; font-size: 10px; color: #aaa; }
       .slot-icon { font-size: 22px; line-height: 1; }

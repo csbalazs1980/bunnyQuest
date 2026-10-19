@@ -12,17 +12,18 @@ import type { RuneId } from "./runes.js";
 /**
  * The spells. `radius`: the tiles a spell covers around the target tile (1 = the tile and the 8 around
  * it, 0 = just that tile); `hostile`: an attack (just-respawned, protected bunnies can't use it yet);
- * `color`: the target shown while aiming.
+ * `color`: the target shown while aiming; `self`: not aimed, it works right where the caster stands.
  */
 export const SPELLS = {
-  fireball: { runes: ["ka", "ash", "dom"] as RuneId[], icon: "🔥", radius: 1, hostile: true, color: 0xff8a2a },
-  healing: { runes: ["ul", "tor", "sel"] as RuneId[], icon: "💚", radius: 0, hostile: false, color: 0x5ee07a },
+  fireball: { runes: ["ka", "ash", "dom"] as RuneId[], icon: "🔥", radius: 1, hostile: true, color: 0xff8a2a, self: false },
+  healing: { runes: ["ul", "tor", "sel"] as RuneId[], icon: "💚", radius: 0, hostile: false, color: 0x5ee07a, self: false },
+  necromancy: { runes: ["mor", "ul", "ka"] as RuneId[], icon: "💀", radius: 0, hostile: false, color: 0x9be04a, self: true },
 } as const;
 export type SpellId = keyof typeof SPELLS;
 export const SPELL_IDS = Object.keys(SPELLS) as SpellId[];
 
 /** Runes every new bunny knows (for now: those of every spell). Later runes could be learned from scrolls or teachers. */
-export const STARTER_RUNES: RuneId[] = ["ka", "ash", "dom", "ul", "tor", "sel"];
+export const STARTER_RUNES: RuneId[] = ["ka", "ash", "dom", "ul", "tor", "sel", "mor"];
 
 /** The hotbar keys of the spell slots, in the order they fill up. */
 export const SPELL_SLOTS = ["X", "C", "V", "B"] as const;
@@ -67,10 +68,10 @@ export const SPELL_RANGE = SPELL_RANGE_TILES * TILE_SIZE;
 /** Center of a tile in pixels. */
 export const tileCenter = (tx: number, ty: number) => ({ x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE });
 
-/** Can a bunny at (x, y) cast a spell at tile (tx, ty)? */
-export const inSpellRange = (x: number, y: number, tx: number, ty: number) => {
+/** Can a bunny at (x, y) cast a spell at tile (tx, ty)? (`range`: another reach, e.g. ARMY.orderRange) */
+export const inSpellRange = (x: number, y: number, tx: number, ty: number, range = SPELL_RANGE) => {
   const c = tileCenter(tx, ty);
-  return Math.hypot(c.x - x, c.y - y) <= SPELL_RANGE;
+  return Math.hypot(c.x - x, c.y - y) <= range;
 };
 
 /** Is someone standing at (x, y) inside the area of a spell (`radius` tiles around tile (tx, ty))? */
@@ -100,3 +101,10 @@ export const fireballFlightMs = (x: number, y: number, tx: number, ty: number) =
 /** Healing: every bunny standing on the target tile (the caster too) gets back 5 + 2 × Intelligence HP (up to its max). */
 export const HEALING = { base: 5, perIntelligence: 2 };
 export const healAmount = (intelligence: number) => HEALING.base + HEALING.perIntelligence * intelligence;
+
+// ---------------- necromancy ----------------
+/**
+ * Necromancy (Mor + Ul + Ka: death, life, create): not aimed. The dead body closest to the caster, within
+ * `reach`, rises as a zombie that serves the caster (see ZOMBIE and ARMY in shared/enemies.ts).
+ */
+export const NECROMANCY = { reach: 2 * TILE_SIZE };

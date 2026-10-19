@@ -8,8 +8,8 @@ import { BubbleLayer } from "../bubbles";
 import { BloodLayer } from "../blood";
 import { MagicFx } from "../magicFx";
 import { animateBunny, BUNNY_FRAMES, BUNNY_SCALE, knockOutBunny, loadBunny, resetBunny, setupBunny, viewOf, viewOfFacing } from "../bunnySprite";
-import { SPELLS, tileCenter, type SpellId, type SpellSlot } from "../../../shared/magic";
-import { enemyMaxHp } from "../../../shared/enemies";
+import { NECROMANCY, SPELLS, tileCenter, type SpellId, type SpellSlot } from "../../../shared/magic";
+import { ARMY, baseKind, CORPSE_MS, enemyMaxHp, isZombie } from "../../../shared/enemies";
 import { itemView, type ItemView } from "../../../shared/items";
 import { t, type TKey } from "../i18n";
 import {
@@ -18,14 +18,16 @@ import {
   ATTACK_WORD_COUNT,
   DEFEND_COOLDOWN_MS,
   FATIGUE_COST,
+  TILE_SIZE,
   type CombatFx,
 } from "../../../shared/combat";
 
 const world = new World(mapJson as MapData);
 
-/** Killed enemies lie where they fell this long, then fade away over CORPSE_FADE_MS. */
-const CORPSE_STAYS_MS = 60_000;
+/** Killed enemies lie where they fell (CORPSE_MS, the time Necromancy can raise them), then fade away over this. */
 const CORPSE_FADE_MS = 3_000;
+/** What we aim at: a spell slot's spell, or the tile we send our undead army to (N). */
+export type AimMode = SpellSlot | "army";
 
 type Input = { left: boolean; right: boolean; up: boolean; down: boolean };
 
@@ -67,6 +69,8 @@ type Life = { state: "alive" | "out" | "protected"; seconds: number };
 export class GameScene extends Phaser.Scene {
   private bunnies = new Map<string, BunnyView>();
   private enemies = new Map<string, EnemyView>();
+  /** Bodies of killed enemies lying on the ground (by the enemy's id), which Necromancy can raise. */
+  private corpses = new Map<string, Phaser.GameObjects.Sprite>();
   private keys!: Record<string, Phaser.Input.Keyboard.Key>;
   /** Eat / use an item (set by main.ts: the same thing the inventory's right-click does). */
   onUseItem?: (item: ItemView) => void;
@@ -87,11 +91,11 @@ export class GameScene extends Phaser.Scene {
   private magic!: MagicFx;
   /** Our magic scroll is open: our bunny stands still (src/ui/scroll.ts). */
   private drawing = false;
-  /** The spell slot we are aiming with (a target follows the pointer), if any. */
-  private aiming: SpellSlot | null = null;
+  /** The spell slot we are aiming with, or "army" (a target follows the pointer), if any. */
+  private aiming: AimMode | null = null;
   private aimHint = document.createElement("div");
-  /** Tells the HUD which spell slot is being aimed (to highlight it). */
-  onAimChange?: (slot: SpellSlot | null) => void;
+  /** Tells the HUD which spell slot (or the army button) is being aimed (to highlight it). */
+  onAimChange?: (slot: AimMode | null) => void;
 
   constructor(private room: Room) {
     super("game");
@@ -133,6 +137,8 @@ export class GameScene extends Phaser.Scene {
       const view = this.bunnies.get(m.id);
       if (view) this.bubbles.say(view.sprite, m.text);
     });
+    // Necromancy found no body in reach after all (it stays charged)
+    this.room.onMessage("spellFail", () => this.say(t("magic.noBody")));
     this.setupCombat();
     // Esc cancels aiming (capture phase, so it doesn't also open the Options)
     const onKey = (e: KeyboardEvent) => {
@@ -197,8 +203,10 @@ export class GameScene extends Phaser.Scene {
 
     // Rats (server/src/rats.ts): the server moves them, we only slide them smoothly to where it says
     $(this.room.state).enemies.onAdd((enemy: any, id: string) => {
-      const tall = enemy.kind === "king" || enemy.kind === "knight";
-      const sprite = this.add.sprite(enemy.x, enemy.y, tall ? enemy.kind : "rat").setFlipX(enemy.faceLeft);
+      const base = baseKind(enemy.kind);
+      const tall = base === "king" || base === "knight";
+      // Textures: "rat", "knight", "king" and their zombies "zrat", "zknight", "zking" (drawn below)
+      const sprite = this.add.sprite(enemy.x, enemy.y, this.textures.exists(enemy.kind) ? enemy.kind : "rat").setFlipX(enemy.faceLeft);
       // Crusaders are 1.5-2 tiles tall but stand on their feet: their position (and collision) is the
       // bottom quarter of the sprite, the rest of the body rises above it
       if (tall) sprite.setOrigin(0.5, 7 / 8);
@@ -209,6 +217,11 @@ export class GameScene extends Phaser.Scene {
           .setOrigin(0.5, 1);
       }
       this.enemies.set(id, view);
+      if (isZombie(enemy.kind)) {
+        // Rising from the ground: grows up out of it, faded in
+        sprite.setScale(1, 0.1).setAlpha(0.3);
+        this.tweens.add({ targets: sprite, scaleY: 1, alpha: 1, duration: 700, ease: "Back.easeOut" });
+      }
       $(enemy).onChange(() => {
         view.targetX = enemy.x;
         view.targetY = enemy.y;
@@ -226,8 +239,15 @@ export class GameScene extends Phaser.Scene {
       // then slowly fades. Only a picture: the server has already removed it, so nobody bumps into it.
       const body = view.sprite;
       this.tweens.killTweensOf(body);
-      body.setAlpha(1).setDepth(-0.3); // on the ground: above scorch marks, under everyone still standing
-      this.tweens.add({ targets: body, alpha: 0, delay: CORPSE_STAYS_MS, duration: CORPSE_FADE_MS, onComplete: () => body.destroy() });
+      body.setAlpha(1).setScale(1).setDepth(-0.3); // on the ground: above scorch marks, under everyone still standing
+      this.corpses.set(id, body);
+      this.tweens.add({
+        targets: body, alpha: 0, delay: CORPSE_MS, duration: CORPSE_FADE_MS,
+        onComplete: () => {
+          if (this.corpses.get(id) === body) this.corpses.delete(id);
+          body.destroy();
+        },
+      });
     });
 
     $(this.room.state).players.onRemove((_player: any, sessionId: string) => {
@@ -266,6 +286,26 @@ export class GameScene extends Phaser.Scene {
     });
     // Attacks, blocks, hits and respawns reported by the server
     this.room.onMessage("fx", (m: CombatFx) => {
+      if (m.kind === "crumble") {
+        // a zombie's time is up (shown even if its sprite is already gone)
+        this.magic.crumble(m.x, m.y);
+        const view = this.enemies.get(m.id);
+        if (view) view.sprite.setVisible(false); // removed by the server right after
+        return;
+      }
+      if (m.kind === "raise") {
+        // Necromancy: the body sinks into a green mist; the zombie appears from the server's list
+        const body = this.corpses.get(m.corpse);
+        this.corpses.delete(m.corpse);
+        const caster = this.spriteOf(m.id);
+        if (body) {
+          if (caster && body.x !== caster.x) caster.setFlipX(body.x < caster.x); // the caster faces the body
+          this.magic.raise(body.x, body.y);
+          this.tweens.killTweensOf(body);
+          body.destroy();
+        }
+        return;
+      }
       const sprite = this.spriteOf(m.id); // a bunny or a rat
       if (!sprite) return;
       const mine = m.id === this.room.sessionId;
@@ -340,7 +380,8 @@ export class GameScene extends Phaser.Scene {
   private bodiesAround(me: Phaser.GameObjects.Sprite): { x: number; y: number }[] {
     const bodies: { x: number; y: number }[] = [];
     this.bunnies.forEach((v) => { if (v.sprite !== me && v.life.state !== "out") bodies.push({ x: v.targetX, y: v.targetY }); });
-    this.enemies.forEach((v) => { if (!v.dying) bodies.push({ x: v.targetX, y: v.targetY }); });
+    // (bunnies walk through zombies, like on the server)
+    this.enemies.forEach((v) => { if (!v.dying && !isZombie(v.state.kind)) bodies.push({ x: v.targetX, y: v.targetY }); });
     return bodies;
   }
 
@@ -400,12 +441,49 @@ export class GameScene extends Phaser.Scene {
     if (this.aiming === slot) return this.stopAim();
     const charged = this.myState()?.spells?.get(slot);
     if (!charged) return;
-    const hostile = SPELLS[charged.spell as SpellId]?.hostile;
-    if (hostile && me.life.state === "protected") return this.fx.say(me.sprite, t("fx.protected")); // just respawned: no attacking
+    const spell = SPELLS[charged.spell as SpellId];
+    if (spell?.hostile && me.life.state === "protected") return this.fx.say(me.sprite, t("fx.protected")); // just respawned: no attacking
+    if (spell?.self) return this.castHere(me, slot);
+    this.stopAim();
     this.aiming = slot;
     this.aimHint.textContent = t("magic.aimHint", { spell: t(`spell.${charged.spell}` as TKey) });
     this.aimHint.hidden = false;
     this.onAimChange?.(slot);
+  }
+
+  /** A spell that isn't aimed (Necromancy): works right where we stand. */
+  private castHere(me: BunnyView, slot: SpellSlot) {
+    this.stopAim();
+    // Is there a body close enough? (the server checks again)
+    let near = false;
+    this.corpses.forEach((body) => {
+      if (Math.hypot(body.x - me.sprite.x, body.y - me.sprite.y) <= NECROMANCY.reach) near = true;
+    });
+    if (!near) return this.fx.say(me.sprite, t("magic.noBody"));
+    this.room.send("spell", { slot, tx: Math.floor(me.sprite.x / TILE_SIZE), ty: Math.floor(me.sprite.y / TILE_SIZE) });
+  }
+
+  /** How many zombies serve us right now. */
+  armySize(): number {
+    let n = 0;
+    this.enemies.forEach((v) => { if (isZombie(v.state.kind) && v.state.owner === this.room.sessionId && !v.dying) n++; });
+    return n;
+  }
+
+  /**
+   * N (or the army button): aim where to send our undead army; a click sends them to that tile, where
+   * they attack anybody on it or around it. Pressing N again cancels.
+   */
+  aimArmy() {
+    const me = this.bunnies.get(this.room.sessionId);
+    if (!me || me.life.state === "out" || this.drawing) return;
+    if (this.aiming === "army") return this.stopAim();
+    if (!this.armySize()) return this.fx.say(me.sprite, t("army.none"));
+    this.stopAim();
+    this.aiming = "army";
+    this.aimHint.textContent = t("army.aimHint");
+    this.aimHint.hidden = false;
+    this.onAimChange?.("army");
   }
 
   stopAim() {
@@ -424,11 +502,15 @@ export class GameScene extends Phaser.Scene {
     if (!target) return;
     if (!target.ok) return this.fx.say(me.sprite, t("magic.tooFar"));
     this.stopAim();
-    this.room.send("spell", { slot, tx: target.tx, ty: target.ty });
+    if (slot === "army") {
+      this.room.send("order", { tx: target.tx, ty: target.ty });
+      this.magic.orderMark(target.tx, target.ty, ARMY.radius);
+    } else this.room.send("spell", { slot, tx: target.tx, ty: target.ty });
   }
 
-  /** Draws the target of the spell being aimed (its area and color) under (x, y); returns the tile. */
+  /** Draws the target of the spell (or army order) being aimed (its area and color) under (x, y); returns the tile. */
   private showAim(me: BunnyView, x: number, y: number) {
+    if (this.aiming === "army") return this.magic.showAim(me.sprite, x, y, ARMY.radius, 0x9be04a, ARMY.orderRange);
     const spell = SPELLS[this.myState()?.spells?.get(this.aiming)?.spell as SpellId] ?? SPELLS.fireball;
     return this.magic.showAim(me.sprite, x, y, spell.radius, spell.color);
   }
@@ -569,7 +651,13 @@ export class GameScene extends Phaser.Scene {
     this.banner.className = me?.life.state ?? "";
 
     // Aiming a spell: the target follows the pointer (which stays put on screen while the camera moves)
-    if (this.aiming) {
+    if (this.aiming === "army") {
+      if (!me || me.life.state === "out" || !this.armySize()) this.stopAim(); // knocked out, or no army left
+      else {
+        const p = this.input.activePointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
+        this.showAim(me, p.x, p.y);
+      }
+    } else if (this.aiming) {
       const charged = this.myState()?.spells?.get(this.aiming);
       const hostile = SPELLS[charged?.spell as SpellId]?.hostile;
       if (!me || me.life.state === "out" || (hostile && me.life.state !== "alive") || !charged) this.stopAim(); // knocked out, or the spell faded
@@ -728,10 +816,13 @@ function handAction(item: ItemView): "eat" | "attack" | "block" | "none" {
   return "none";
 }
 
-/** A little grey rat (side view, facing right), drawn in code like the bunny, 3x scale. */
+/**
+ * A little grey rat (side view, facing right), drawn in code like the bunny, 3x scale; and its zombie
+ * ("zrat"): rotten grey-green fur with dark patches, bare ribs and a glowing green eye.
+ */
 function makeRatTexture(scene: Phaser.Scene) {
   const S = 3;
-  const rows = [
+  const rat = [
     "...........PP...",
     ".....GGGGGGGPG..",
     "...GGGGGGGGGGKG.",
@@ -740,23 +831,59 @@ function makeRatTexture(scene: Phaser.Scene) {
     "..PGGGGGGGGGG...",
     "....P.P...P.P...",
   ];
-  const palette: Record<string, number> = { G: 0x8d8790, P: 0xe8a0a8, K: 0x1a1a1a };
+  const zrat = [
+    "...........PP...",
+    ".....GGGDGGGPG..",
+    "...GGDGGGGGGGEG.",
+    "P.GGBGBGBGGGGGGP",
+    ".PGGGGGGGGDGGG..",
+    "..PGGDGGGGGGG...",
+    "....P.P...B.P...",
+  ];
+  drawPixels(scene, "rat", rat, 16, S, { G: 0x8d8790, P: 0xe8a0a8, K: 0x1a1a1a });
+  drawPixels(scene, "zrat", zrat, 16, S, { G: 0x9aa684, D: 0x5d6b4c, B: 0xe6e0c4, P: 0xa88a7e, E: 0xc8ff4a });
+}
+
+/** Draws pixel art (one character per pixel, `palette` colors; others are transparent) into texture `key`. */
+function drawPixels(scene: Phaser.Scene, key: string, art: string[], width: number, S: number, palette: Record<string, number>) {
   const g = scene.make.graphics({}, false);
-  rows.forEach((row, y) =>
+  art.forEach((row, y) =>
     [...row].forEach((c, x) => {
       if (palette[c] === undefined) return;
       g.fillStyle(palette[c]);
       g.fillRect(x * S, y * S, S, S);
     })
   );
-  g.generateTexture("rat", 16 * S, rows.length * S);
+  g.generateTexture(key, width * S, art.length * S);
   g.destroy();
+}
+
+/**
+ * A crusader's zombie: rust and moss on the armor, holes in the tabard and a ragged hem, a rotten green
+ * hand where the gauntlet broke, a bent sword, and (with the palette) a visor slit glowing green.
+ * `top`: rows above the helmet (the king's crown).
+ */
+function zombify(art: string[], top: number): string[] {
+  const a = art.map((row) => [...row]);
+  const put = (y: number, x: number, c: string) => {
+    const row = a[y + top];
+    if (row && x >= 0 && x < row.length) row[x] = c;
+  };
+  const stains: [number, number, string][] = [
+    [1, 4, "O"], [2, 9, "O"], [0, 6, "G"], [4, 8, "O"], [6, 4, "G"], [7, 5, "O"], [9, 1, "O"],
+    [12, 12, "G"], [15, 2, "O"], [24, 3, "O"], [27, 9, "G"], [29, 10, "O"],
+  ];
+  stains.forEach(([y, x, c]) => put(y, x, c));
+  for (const [y, x] of [[10, 8], [14, 5], [19, 9], [21, 4], [21, 10], [20, 3], [20, 10]]) put(y, x, "."); // torn tabard
+  put(13, 13, "F"); // the rotten hand
+  put(21, 13, "."); put(22, 12, "S"); put(23, 12, "S"); put(24, 12, "."); // the bent sword
+  return a.map((row) => row.join(""));
 }
 
 /**
  * Crusaders, drawn in code like the bunny (3x scale): a knight in a great helm and a white tabard with
  * a red cross (14 x 34 pixels, about 1.6 tiles tall), and the king: crown, blue and gold tabard and a
- * purple cape (about 1.8 tiles tall).
+ * purple cape (about 1.8 tiles tall). Also their zombies ("zknight", "zking").
  */
 function makeCrusaderTextures(scene: Phaser.Scene) {
   const S = 3;
@@ -810,18 +937,15 @@ function makeCrusaderTextures(scene: Phaser.Scene) {
     H: 0xa8adb5, D: 0x2b2b2b, M: 0x7d838c, W: 0xeeeeee, R: 0xc8202a, B: 0x5a3a22, K: 0x3a2a1a, S: 0xd8dde3,
     U: 0x2d4fa3, Y: 0xf2c230, P: 0x6b3fa0,
   };
-  for (const [key, art] of [["knight", knight], ["king", king]] as const) {
-    const g = scene.make.graphics({}, false);
-    art.forEach((row, y) =>
-      [...row].forEach((c, x) => {
-        if (palette[c] === undefined) return;
-        g.fillStyle(palette[c]);
-        g.fillRect(x * S, y * S, S, S);
-      })
-    );
-    g.generateTexture(key, 14 * S, art.length * S);
-    g.destroy();
-  }
+  drawPixels(scene, "knight", knight, 14, S, palette);
+  drawPixels(scene, "king", king, 14, S, palette);
+  // Their zombies: rusty, mossy, rotten (see zombify)
+  const zombiePalette: Record<string, number> = {
+    H: 0x8e8a78, D: 0x9bff4a, M: 0x6a6a5c, W: 0xb9b896, R: 0x6e2a22, B: 0x3e2a1a, K: 0x2a2016, S: 0x9a8c78,
+    U: 0x3b4d63, Y: 0xa8913e, P: 0x4a3a55, O: 0x8a4f28, G: 0x5f8a3a, F: 0x7fae4c,
+  };
+  drawPixels(scene, "zknight", zombify(knight, 0), 14, S, zombiePalette);
+  drawPixels(scene, "zking", zombify(king, 2), 14, S, zombiePalette);
 }
 
 /** A player's life state from the synced fields (see the server's Player schema). */

@@ -40,6 +40,7 @@ const line = (...pts: [number, number][]): Stroke => pts.map(([x, y]) => ({ x, y
 /**
  * The runes, each as the strokes of a model drawing (y grows downward, like on the screen).
  * Fireball = Ka (create) + Ash (fire) + Dom (burst). Healing = Ul (life) + Tor (give) + Sel (mend).
+ * Necromancy = Mor (death) + Ul (life) + Ka (create).
  */
 export const RUNE_SHAPES = {
   // A hook: up the left side, across the top and curving down to the right
@@ -54,6 +55,8 @@ export const RUNE_SHAPES = {
   tor: [line([30, 167], [147, 165]), line([82, 167], [82, 238])],
   // A long "/" with a short "\\" leaning against its lower half
   sel: [line([40, 342], [138, 260]), line([100, 312], [128, 346])],
+  // A post with one branch rising from its middle up to the right
+  mor: [line([40, 40], [40, 150]), line([40, 105], [85, 52])],
 } satisfies Record<string, Stroke[]>;
 
 export type RuneId = keyof typeof RUNE_SHAPES;

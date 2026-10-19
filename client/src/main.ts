@@ -170,6 +170,7 @@ function start(room: Room) {
     onUse: useItem,
     setGameInput,
     onSpell: (slot) => scene.aimSpell(slot),
+    onArmy: () => scene.aimArmy(),
   });
   scene.onAimChange = (slot) => hud.setAiming(slot);
   const spellbook = new Spellbook(); // P: pick a spell, see its runes; docks below the stats
@@ -210,6 +211,9 @@ function start(room: Room) {
     const spells: { slot: SpellSlot; spell: any; secondsLeft: number }[] = [];
     me.spells?.forEach((c: any, slot: string) => spells.push({ slot: slot as SpellSlot, spell: c.spell, secondsLeft: c.secondsLeft }));
     hud.setSpells(spells);
+    let army = 0; // zombies serving us (Necromancy)
+    state.enemies?.forEach((e: any) => { if (e.owner === room.sessionId) army++; });
+    hud.setArmy(army);
     const runes = Array.from(me.runes ?? []) as string[];
     spellbook.setRunes(runes);
     help.setRunes(runes); // Help → Magic lists the runes we know

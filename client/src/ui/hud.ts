@@ -48,6 +48,8 @@ export interface HudOptions {
   setGameInput(enabled: boolean): void;
   /** A spell slot's key (X, C, V, B) was pressed or the slot clicked: aim / use its spell. */
   onSpell(slot: SpellSlot): void;
+  /** N was pressed or the army button clicked: aim where to send the undead army. */
+  onArmy(): void;
 }
 
 type SortKey = "name" | "type";
@@ -78,7 +80,9 @@ export class Hud {
   private hotSlots: HTMLDivElement[] = [];
   private spellBar: HTMLDivElement;
   private spells: HudSpell[] = [];
-  private aiming: SpellSlot | null = null;
+  private aiming: SpellSlot | "army" | null = null;
+  private armyButton: HTMLDivElement;
+  private armySize = 0;
 
   constructor(private opts: HudOptions) {
     // ---------- inventory window ----------
@@ -156,7 +160,12 @@ export class Hud {
         <span class="vital-fill"></span><span class="vital-text"></span></div>
       <div class="vital hunger"><span class="vital-fill"></span><span class="vital-text"></span></div>`;
     document.body.append(this.vitals, this.hotbar);
-    this.hotbar.append(this.spellBar);
+    // The undead army (N): shows how many zombies serve us; click (or N) to send them to a tile
+    this.armyButton = el("div", { className: "slot army" });
+    this.armyButton.innerHTML = `<span class="slot-key">N</span><span class="slot-icon">🧟</span><span class="slot-label"></span>`;
+    this.armyButton.onclick = () => this.opts.onArmy();
+    this.armyButton.hidden = true;
+    this.hotbar.append(this.spellBar, this.armyButton);
 
     // ---------- keyboard ----------
     //   1..N        select hotbar slot N
@@ -164,6 +173,7 @@ export class Hud {
     //   Shift+E     wear the picked item in its matching outfit slot
     //   E           use the item in the selected hotbar slot (eat food)
     //   X C V B     use the spell in that spell slot (F itself opens the magic scroll: src/ui/scroll.ts)
+    //   N           send the undead army somewhere (aim, then click a tile)
     // e.code is the physical key, so this works on any keyboard layout.
     window.addEventListener("keydown", (e) => {
       if (e.target instanceof HTMLInputElement) return; // typing in the filter
@@ -174,6 +184,10 @@ export class Hud {
       const spellKey = /^Key([XCVB])$/.exec(e.code)?.[1] as SpellSlot | undefined;
       if (spellKey && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         this.opts.onSpell(spellKey);
+        return;
+      }
+      if (e.code === "KeyN" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        this.opts.onArmy();
         return;
       }
       if (e.code === "KeyE" && !e.shiftKey && !e.ctrlKey && !e.altKey) {
@@ -203,6 +217,7 @@ export class Hud {
     this.vitals.querySelector<HTMLElement>(".hp")!.title = t("vitals.hpHint");
     this.vitals.querySelector<HTMLElement>(".fatigue")!.title = t("vitals.fatigueHint");
     this.vitals.querySelector<HTMLElement>(".hunger")!.title = t("vitals.hungerHint");
+    this.armyButton.title = t("army.button", { n: this.armySize });
     this.items = this.rawItems.map((it) => ({ ...it, name: tItem(it.defId) }));
     this.renderAll();
   }
@@ -231,9 +246,16 @@ export class Hud {
     this.renderSpells();
   }
 
-  /** Highlights the spell slot being aimed (null: none). */
-  setAiming(slot: SpellSlot | null) {
+  /** Highlights the spell slot (or the army button) being aimed (null: none). */
+  setAiming(slot: SpellSlot | "army" | null) {
     this.aiming = slot;
+    this.renderSpells();
+  }
+
+  /** How many zombies serve us (the army button shows only while there are some). */
+  setArmy(size: number) {
+    if (size === this.armySize) return;
+    this.armySize = size;
     this.renderSpells();
   }
 
@@ -318,7 +340,7 @@ export class Hud {
         if (s.beltIndex !== undefined) slot.classList.add("pocket");
         return slot;
       });
-      this.hotbar.replaceChildren(...this.hotSlots, this.spellBar);
+      this.hotbar.replaceChildren(...this.hotSlots, this.spellBar, this.armyButton);
     }
     this.selectedHot = Math.min(this.selectedHot, this.hotSlots.length - 1);
     this.hotSlots.forEach((slot, i) => {
@@ -329,6 +351,10 @@ export class Hud {
   }
 
   private renderSpells() {
+    this.armyButton.hidden = !this.armySize;
+    (this.armyButton.querySelector(".slot-label") as HTMLElement).textContent = `×${this.armySize}`;
+    this.armyButton.title = t("army.button", { n: this.armySize });
+    this.armyButton.classList.toggle("selected", this.aiming === "army");
     const charged = SPELL_SLOTS.map((slot) => this.spells.find((s) => s.slot === slot)).filter((s): s is HudSpell => !!s);
     this.spellBar.hidden = !charged.length;
     this.spellBar.replaceChildren(
