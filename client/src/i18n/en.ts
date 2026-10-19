@@ -155,6 +155,14 @@ export const en = {
   "rune.ash.meaning": "fire",
   "rune.dom": "Dom",
   "rune.dom.meaning": "burst",
+  "spell.healing": "Healing",
+  "spell.healing.desc": "Heals every bunny standing on one tile, you too. Intelligence makes it heal more.",
+  "rune.ul": "Ul",
+  "rune.ul.meaning": "life",
+  "rune.tor": "Tor",
+  "rune.tor.meaning": "give",
+  "rune.sel": "Sel",
+  "rune.sel.meaning": "mend",
   "magic.scrollHint": "Draw the runes from top to bottom · let go of F to cast · right-click wipes the scroll",
   "magic.reading": "Reading the runes…",
   "magic.unknown": "?",
@@ -164,11 +172,11 @@ export const en = {
   "magic.fail.unknownRune": "You don't know that rune",
   "magic.fail.noSpell": "These runes make no spell",
   "magic.fail.busy": "Not now!",
-  "magic.aimHint": "{spell}: click a tile to throw it · right-click or Esc to cancel",
+  "magic.aimHint": "{spell}: click a tile to cast it there · right-click or Esc to cancel",
   "magic.tooFar": "Too far!",
   "slot.spell": "{spell} [{key}]: fades in {n} s\nPress {key} or click to aim it",
-  "spellbook.spells": "Spells",
-  "spellbook.runes": "Known runes",
+  "spellbook.pick": "Pick a spell to see how to cast it",
+  "spellbook.howTo": "Draw on the scroll, top to bottom:",
   "spellbook.hint": "Hold F and draw a spell's runes on the scroll from top to bottom, then let go of F.",
   "spellbook.none": "You don't know any runes yet.",
   "spellbook.missing": "You don't know all of its runes yet",
@@ -292,15 +300,25 @@ Hold [F] and a big magic scroll opens in front of you. Only you can see it: ever
 - The runes don't have to be perfect, just recognisable. Big or small, a bit crooked: it all works.
 - **Right-click** wipes the scroll if you want to start again.
 - Let go of [F] to read the scroll. For a moment it shows which rune it saw where (a "?" means it couldn't read that one).
-- You can only use runes you know. The **Spellbook** ([P]) shows your runes and the spells you can make with them.
+- You can only use runes you know. In the **Spellbook** ([P]) pick a spell from the list to see its runes in order. The runes you know are at the bottom of this page.
 
 ## Spell slots
 A spell that works goes into a free spell slot on the hotbar: [X], then [C], [V] and [B]. How many of these slots you have depends on your **Intelligence**: 1 at first, 2 from Intelligence 3, 3 from 6 and all 4 from 8. A spell waits in its slot for **1 minute plus 6 seconds per Intelligence point**, then fades away. Press the slot's key (or click it) to use it; each charge works once. If all your slots are full, a new spell replaces the one that would fade first. Getting knocked out drops your scroll and every charged spell.
 
 ## Fireball
-Runes: **Ka** (create), **Ash** (fire), **Dom** (burst). Press its key and a target appears on the ground: move it with the mouse and **click** to throw. The fireball flies there and explodes on that tile and the 8 tiles around it, hurting everyone and everything standing there (except you). It reaches about 8 tiles; the target turns red when it is too far. **Right-click** or [Esc] cancels.
+Runes: **Ka** (create), **Ash** (fire), **Dom** (burst). Press its key and a target appears on the ground: move it with the mouse and **click** to throw. The fireball flies there and explodes on that tile and the 8 tiles around it, hurting everyone and everything standing there, **you too** if you are that close (when friendly fire is on), so keep your distance. It reaches about 8 tiles; the target turns red when it is too far. **Right-click** or [Esc] cancels.
 - Its damage grows with your **Intelligence**. Armor softens it, but it can't be blocked with a shield.
-- With friendly fire off, it doesn't hurt other bunnies.`,
+- With friendly fire off, it doesn't hurt any bunny, you included.
+
+## Healing
+Runes: **Ul** (life, two parallel lines leaning like \\), **Tor** (give, a T) and **Sel** (mend, a long / with a short \\ against its lower half). Aim it like the fireball, but the target is a single tile: click to cast it on that tile. Every bunny standing there gets health back, and that includes you, so aim at your own tile to heal yourself.
+- The more **Intelligence** you have, the more it heals. It never heals more than a bunny's full health.
+- It works on friends and foes alike (but not on animals), and you can use it even while you are still protected after waking up.
+
+## Your runes
+These are the runes you know, with what they mean. A spell needs all of its runes.
+
+{{runes}}`,
 };
 
 export type Dict = Record<keyof typeof en, string>;

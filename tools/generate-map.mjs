@@ -1,14 +1,17 @@
 // Generates shared/map.json: a simple island world made of 5 terrain types.
-// Usage: node tools/generate-map.mjs [seed] [size]   e.g. "42 400" (same seed + size => same map)
+// Usage: node tools/generate-map.mjs [seed] [width] [height]   e.g. "42 400" (square) or "42 600 800"
+// (same seed + size => same map). To hand-edit the result as pictures: npm run map:export (tools/map-png.mjs).
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const seed = Number(process.argv[2] ?? 1337);
-const W = Number(process.argv[3] ?? 400), H = W;
+const W = Number(process.argv[3] ?? 400), H = Number(process.argv[4] ?? W);
+if (!(W >= 50 && H >= 50)) throw new Error("The map must be at least 50 x 50 tiles");
 
-// Everything below scales with the map size (K = 1 for a 100x100 map, 4 for 400x400)
-const K = W / 100;
+// Everything below scales with the map size (K = 1 for a 100x100 map, 4 for 400x400; non-square maps
+// use their average side)
+const K = Math.sqrt(W * H) / 100;
 const CITY_COUNT = Math.round(15 * K); // 60 on a 400x400 map
 const CITY_SPACING = 16 * Math.sqrt(K); // minimum distance between city centers, in tiles
 const RIVER_COUNT = Math.round(3 * K);
@@ -176,8 +179,8 @@ const swamps = [];
 for (let tries = 0; swamps.length < SWAMP_COUNT && tries < 5000; tries++) {
   const x = Math.floor(rand() * W), y = Math.floor(rand() * H);
   if (!"GT".includes(tiles[y][x]) || elev[y][x] > SEA_LEVEL + (HILL_LEVEL - SEA_LEVEL) * 0.35) continue; // lowland only
-  if (Math.hypot(x - W / 2, y - H / 2) < W * 0.15) continue; // not next to the spawn town
-  if (swamps.some((s) => Math.hypot(s.x - x, s.y - y) < W * 0.3)) continue; // far from each other
+  if (Math.hypot(x - W / 2, y - H / 2) < K * 15) continue; // not next to the spawn town
+  if (swamps.some((s) => Math.hypot(s.x - x, s.y - y) < K * 30)) continue; // far from each other
   swamps.push({ x, y });
 }
 for (const s of swamps) {

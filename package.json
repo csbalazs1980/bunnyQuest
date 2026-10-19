@@ -11,7 +11,9 @@
     "build": "npm run build -w server && npm run build -w client",
     "share": "npm run build -w client && npm run serve -w server",
     "tunnel": "cloudflared tunnel --url http://localhost:2567",
-    "map": "node tools/generate-map.mjs"
+    "map": "node tools/generate-map.mjs",
+    "map:export": "node tools/map-png.mjs export",
+    "map:import": "node tools/map-png.mjs import"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

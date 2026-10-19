@@ -150,7 +150,8 @@ Actually fighting other bunnies is not in the game yet.
   knocked-out and freshly respawned (protected) bunnies alone.
 - Easy on purpose: 12 HP (two sword hits), bite attack 3 (≈3 HP without armor, nothing through a sword
   block), one bite per 1.2 s. They can't block.
-- Killed rats flip over and fade; a new one appears somewhere else after 60 s.
+- Killed rats flip over and lie there for 1 minute, then fade away over 3 s (crusaders too: they stay fallen
+  over; `CORPSE_STAYS_MS` / `CORPSE_FADE_MS` in `GameScene`). A new rat appears somewhere else after 60 s.
 - Everything runs on the server (`server/src/rats.ts`); positions are whole pixels so idle rats send nothing.
   All numbers are in `RAT` in `shared/enemies.ts`. The client draws them in `GameScene` (`makeRatTexture`).
 
@@ -221,17 +222,28 @@ A rune-drawing system in the spirit of Arx Fatalis: you draw a spell's runes, an
 Press its slot key: a 3×3 target follows the mouse (red when out of reach, max **8 tiles**); click to throw,
 right-click / Esc / the same key again cancels. It flies there in an arc and explodes on the tile and the 8
 around it. Damage = **2 + Intelligence − armor** (never below 0), for every bunny (if friendly fire is on),
-rat and crusader standing there. It can't be blocked, and the caster is never hurt by their own fireball.
+rat and crusader standing there. It can't be blocked, and with friendly fire on it hurts the caster too if they
+stand in the blast, so don't throw it at your feet.
 Just-respawned (protected) bunnies can charge spells but can't throw them yet, like attacking.
 
-The **Spellbook** window (**P**, starts minimized) shows the spells with their runes in order and every rune
-you know. For now every bunny starts knowing Ka, Ash and Dom (`STARTER_RUNES`).
+**Healing** = **Ul** (life, two parallel "\\\\") + **Tor** (give, a "T") + **Sel** (mend, a long "/" with a short "\\"
+against its lower half). Aimed like the fireball, but the target is **one tile** (green): every bunny standing
+there that isn't knocked out, the caster included, gets back **5 + 2 × Intelligence HP** (never above max HP).
+Friend or foe alike, but not animals. It isn't an attack, so protected (just-respawned) bunnies can use it.
+Numbers: `HEALING` in `shared/magic.ts`; each spell's area (`radius`), whether it is an attack (`hostile`)
+and aim color are in `SPELLS`; both spells reach `SPELL_RANGE_TILES` (8).
+
+The **Spellbook** window (**P**, starts minimized) has a drop-down with every spell (🔒 = you don't know all
+its runes yet); pick one to see what it does and its runes in order, top to bottom (the choice is
+remembered). The runes you know, with pictures and meanings, are in **Help → Magic** (a `{{runes}}` line
+in a help text shows them). For now every bunny starts knowing all six runes (`STARTER_RUNES`).
 
 **How a drawing is read** (`shared/runes.ts`): tiny strokes are dropped; strokes whose heights overlap are
 grouped into one rune, and the groups are ordered top to bottom; each group is matched against every rune
 with the [$P point-cloud recognizer](https://depts.washington.edu/acelab/proj/dollar/pdollar.html) (32 points,
 size and position don't matter, stroke order and direction don't matter, orientation does), plus a penalty
-when a sharp corner or a closed loop is missing or extra (that is what keeps the Ka hook and the Dom arc apart).
+when a sharp corner or a closed loop is missing or extra (that is what keeps the Ka hook and the Dom arc apart)
+and when the lines run in different directions (so "=" isn't read as Tor's "T").
 The closest rune wins if it is within `RUNE_TOLERANCE` and the stroke count fits (the model's count up to 2
 more). Raise `RUNE_TOLERANCE` to be more forgiving. In a test with thousands of randomly distorted drawings
 (wobbly, stretched, rotated, sloppily placed), about 98% of reasonable ones were read right, and plain lines,
@@ -247,7 +259,9 @@ Adding things:
   target `client/src/magicFx.ts`, spell slots in `client/src/ui/hud.ts`, aiming in `GameScene`.
 
 ## The map
-400×400 tiles, 64×64 pixels each (25,600×25,600 px world), stored in `shared/map.json`.
+400×400 tiles, 64×64 pixels each (25,600×25,600 px world), stored in `shared/map.json`. The size isn't
+fixed: the game, the server and the minimap read `width` and `height` from the map, so a 600×800 map
+just works (the minimap keeps the map's shape).
 
 **Terrain** (`rows`, one character per tile):
 
@@ -279,20 +293,81 @@ the middle), and connects the cities with the cheapest road network it can find.
 `terrain` and `road` sections of `map.json`, so you can tweak them without touching code.
 
 To make a new random island: `npm run map -- 42` (any number is a seed; the same seed always gives the
-same map). Add a size to change the map size, e.g. `npm run map -- 42 200` for 200×200; city and river
-counts scale with the size. Other settings (number of swamps, summits, …) are at the top of
-`tools/generate-map.mjs`. You can also edit the `rows` and `roads` strings by hand.
+same map). Add a size to change the map size: `npm run map -- 42 200` for 200×200, `npm run map -- 42 600 800`
+for 600 wide × 800 tall; city and river counts scale with the size. Other settings (number of swamps,
+summits, …) are at the top of `tools/generate-map.mjs`.
+
+### Editing the map as pictures
+The map can be painted pixel by pixel in any pixel-art editor (Aseprite, Piskel, GIMP, Krita, Paint.NET…):
+one pixel = one tile.
+
+```bash
+npm run map:export   # shared/map.json -> map/terrain.png, map/roads.png, map/palette.gpl
+# ... edit the pictures ...
+npm run map:import   # map/terrain.png + map/roads.png -> shared/map.json (the dev server reloads)
+```
+
+- **`map/terrain.png`**: paint with the 8 terrain colors (the `color` values in the table above).
+  **The picture's size is the map's size**: resize the canvas to 600×800 and the world becomes 600×800
+  tiles. Transparent pixels become sea.
+- **`map/roads.png`**: the same size, transparent; draw roads as 1-pixel lines in any color. Straight
+  pieces, curves and junctions are worked out from the neighbouring road pixels, so keep parallel roads
+  at least one pixel apart (touching ones join). Roads on town tiles are ignored (towns have no road
+  overlay); a road ending next to a town connects into it; a road over water works as a bridge. In
+  Aseprite you can stack it as a layer over the terrain while you work, then save each layer as its own PNG.
+- **`map/palette.gpl`**: the colors as a palette (Aseprite, GIMP, Krita and Paint.NET can load it).
+- Use a pencil, not a soft brush. A color that isn't exactly a terrain color is snapped to the closest one,
+  and the import lists them (e.g. `#50aa46 -> grass: 1 pixel(s)`, plus where the first one is).
+- The import also rebuilds the town list from the grey city pixels and keeps the spawn point, unless it
+  is now off the map or on unwalkable ground: then it moves to the middle of the biggest town.
+- Terrain names, colors and speeds still come from `map.json`. The pictures are just the editing format:
+  the game itself only loads `map.json`. Commit both if you like; `map:import` always overwrites `map.json`.
+- The converter needs nothing extra (`tools/map-png.mjs`, plain Node). Exporting and importing the
+  current map gives back the same map (a handful of road ends may get a slightly different shape).
 
 **Tile pictures:** each terrain is drawn from 64×64 PNGs in `client/src/assets/tiles/`, found by the
 terrain's name (`grass`, `trees`, `hills`, `river`, `sea`, `city`, `swamp`, `summit`):
 - `grass.png` → used for every grass tile
-- `grass1.png`, `grass2.png`, … `grassN.png` → if any numbered pictures exist, every grass tile uses one of
-  them (the plain `grass.png` is then ignored). Which one is picked depends on the tile's position and the
-  map seed, so it looks random but is the same for every player and every reload.
+- `grass1.png`, `grass2.png`, … `grassN.png` → every grass tile uses one of them; a plain `grass.png`, if
+  there is one, joins the rotation too. Which one is picked depends on the tile's position and the map
+  seed, so it looks random but is the same for every player and every reload. Every picture comes up about
+  equally often; to make one more common, add a copy of it under another number.
+- **Forest:** `trees1`–`trees6`: the grass pictures with 3 to 8 small trees each (round leafy trees,
+  pines, or both), plus a stump, mushrooms, rocks or a berry bush here and there; everything stays inside
+  the tile so neighbouring tiles join cleanly. The old plain dark-green picture is kept as `trees-plain.png`
+  (a name the game ignores); rename it back to `trees.png` to put it in the rotation again.
+- **Hills:** `hills1`–`hills6`: flat 2D-map style on the brown ground, with soft lighter/darker patches:
+  rounded hills seen from the side (dark outline, light rim on the left, shade on the right, a few grass
+  blades on top), wavy contour strokes, small grass patches and tufts, a couple of boulders, and one tile
+  with a cluster of rocky peaks. The plain brown picture is kept as `hills-plain.png` (ignored, like
+  `trees-plain.png`).
+- **City:** `city.png` (plain grey cobbles) plus `city2`–`city5` (houses: a red-roofed timber house, a thatched
+  cottage with a flower garden, two narrow houses with a well, an inn with a sign), `city6` (a stone temple
+  with a bell tower) and `city7` (a park with a fountain). Medieval pixel art, 64 × 64, with plain grey
+  edges so they join each other seamlessly. They are only pictures: bunnies walk over them like any city tile.
 - no picture → the terrain's `color` from `map.json` is drawn instead
 
 New pictures are picked up automatically (the dev server reloads; for `npm run share` run it again).
 The `color` values are also used for the minimap. The code is in `client/src/tiles.ts`.
+
+## The bunny's picture
+The bunny is a sprite sheet you can edit in any pixel-art editor (Aseprite, Piskel, Paint.NET…):
+`client/src/assets/characters/bunny.png`. It is drawn 3× bigger in the game (`BUNNY_SCALE`), crisp.
+
+- **Which way it looks:** walking **down** (also down+left, down+right) shows the front, walking straight
+  **up** shows the back, walking **left or right** (also up+left, up+right) shows the side, mirrored for left.
+  A bunny that stops keeps the view it last walked in; after a knock-out it stands facing front again.
+- **Frames**, left to right, each 15 × 19 pixels (hopping = looped while moving, 10 frames per second):
+  **0** front standing, **1–4** front hopping (ears swing, hop up, ears swing back, hop up),
+  **5** knocked out (x.x eyes), **6** back standing, **7–10** back hopping (fluffy tail, same hop as
+  the front), **11** side standing (facing right), **12–15** side hopping (ears back, leap, ears
+  forward, leap).
+- **Colors:** keep the fur **white**: every player's color is multiplied onto it (white becomes the
+  player's color, pink becomes a tinted pink; the light grey shading of the tail a darker shade). The **eyes must stay exactly `#222222`**: the glowing red
+  eyes of a bunny drawing on its magic scroll are found by that color, frame by frame.
+- Leave the background transparent. Changing the frame size or the number of hopping frames? Update
+  `BUNNY_FRAME_W`, `BUNNY_FRAME_H` and `BUNNY_FRAMES` in `client/src/bunnySprite.ts`.
+- The bunny is about 25% bigger than the old one drawn in code; its collision and reach haven't changed.
 
 ## HUD windows
 The **Map** (minimap with a red dot for you) and the **Inventory** are small windows stacked on the right
@@ -378,6 +453,6 @@ No account, port forwarding or firewall changes needed. The link changes every t
    movement instantly, and interpolates other players smoothly.
 
 ## Next steps
-- Replace the plain-color tiles and placeholder bunny with real pixel art (e.g. Aseprite → sprite sheets)
+- Replace the plain-color tiles with real pixel art
 - Hand-build maps in Tiled and load them with `this.load.tilemapTiledJSON`
 - Add NPCs, items, combat

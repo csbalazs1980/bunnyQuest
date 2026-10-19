@@ -5,7 +5,10 @@
 //   **bold**          bold text
 //   [W]               a key cap
 //   (blank line)      starts a new paragraph
+//   {{runes}}         (a line on its own) the runes our bunny knows, as pictures (setRunes)
 import { onLanguageChange, t, type TKey } from "../i18n";
+import { RUNE_SHAPES, type RuneId } from "../../../shared/runes";
+import { runePicture } from "./runePicture";
 
 const TOPICS = ["controls", "combat", "magic", "stats"] as const;
 type Topic = (typeof TOPICS)[number];
@@ -18,6 +21,7 @@ export class HelpPanel {
   private nav: HTMLElement;
   private article: HTMLElement;
   private topic: Topic = "controls";
+  private runes: string[] = [];
 
   constructor() {
     try {
@@ -77,6 +81,33 @@ export class HelpPanel {
     onLanguageChange(() => this.relabel());
   }
 
+  /** The runes our bunny knows (from the server), shown in the Magic topic. */
+  setRunes(known: string[]) {
+    if (known.join() === this.runes.join()) return;
+    this.runes = [...known];
+    this.fillRunes();
+  }
+
+  /** Fills every {{runes}} block of the current topic with rune pictures, names and meanings. */
+  private fillRunes() {
+    this.article.querySelectorAll<HTMLElement>(".help-runes").forEach((box) => {
+      const known = this.runes.filter((r): r is RuneId => r in RUNE_SHAPES);
+      if (!known.length) return void (box.textContent = t("spellbook.none"));
+      box.replaceChildren(
+        ...known.map((rune) => {
+          const cell = document.createElement("div");
+          cell.className = "help-rune";
+          const name = document.createElement("b");
+          name.textContent = t(`rune.${rune}` as TKey);
+          const meaning = document.createElement("span");
+          meaning.textContent = t(`rune.${rune}.meaning` as TKey);
+          cell.append(runePicture(rune, 48), name, meaning);
+          return cell;
+        })
+      );
+    });
+  }
+
   toggle(open = this.overlay.hidden) {
     this.overlay.hidden = !open;
     if (open) this.article.scrollTop = 0;
@@ -91,6 +122,7 @@ export class HelpPanel {
     }
     this.nav.querySelectorAll<HTMLElement>(".help-topic").forEach((b) => b.classList.toggle("active", b.dataset.topic === topic));
     this.article.innerHTML = render(t(`help.${topic}.body` as TKey));
+    this.fillRunes();
     this.article.scrollTop = 0;
   }
 
@@ -127,7 +159,10 @@ export function render(src: string): string {
   for (const raw of src.split("\n")) {
     const line = raw.trim();
     if (!line) flush();
-    else if (line.startsWith("## ")) {
+    else if (line === "{{runes}}") {
+      flush();
+      out.push(`<div class="help-runes"></div>`);
+    } else if (line.startsWith("## ")) {
       flush();
       out.push(`<h3>${inline(line.slice(3))}</h3>`);
     } else if (line.startsWith("- ")) {

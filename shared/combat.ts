@@ -141,7 +141,9 @@ export type CombatFx =
   | { kind: "death"; id: string } // `id` ran out of HP: a bunny is knocked out, a rat dies
   | { kind: "respawn"; id: string } // `id` woke up in the start town (protected for a while)
   // `id` threw a fireball from (x, y) to tile (tx, ty); it lands and explodes after `ms` (shared/magic.ts)
-  | { kind: "fireball"; id: string; x: number; y: number; tx: number; ty: number; ms: number };
+  | { kind: "fireball"; id: string; x: number; y: number; tx: number; ty: number; ms: number }
+  // `id` cast healing on tile (tx, ty); `healed`: the bunnies it healed (how much is not sent)
+  | { kind: "heal"; id: string; tx: number; ty: number; healed: string[] };
 
 /** Cleans an angle (radians) and click distance coming from a client. Returns null if invalid. */
 export function cleanAim(angle: unknown, dist: unknown): { angle: number; dist: number } | null {

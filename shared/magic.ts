@@ -1,4 +1,4 @@
-// Magic: spells, the spell slots on the hotbar and the fireball, shared by the client and the server.
+// Magic: spells, the spell slots on the hotbar, the fireball and healing, shared by the client and the server.
 //
 // How it plays (see also shared/runes.ts for how drawings are read):
 //   1. Hold F: a magic scroll opens (only for you; everyone else just sees your eyes glow red and sparkle).
@@ -9,14 +9,20 @@
 import { TILE_SIZE } from "./combat.js";
 import type { RuneId } from "./runes.js";
 
+/**
+ * The spells. `radius`: the tiles a spell covers around the target tile (1 = the tile and the 8 around
+ * it, 0 = just that tile); `hostile`: an attack (just-respawned, protected bunnies can't use it yet);
+ * `color`: the target shown while aiming.
+ */
 export const SPELLS = {
-  fireball: { runes: ["ka", "ash", "dom"] as RuneId[], icon: "🔥" },
+  fireball: { runes: ["ka", "ash", "dom"] as RuneId[], icon: "🔥", radius: 1, hostile: true, color: 0xff8a2a },
+  healing: { runes: ["ul", "tor", "sel"] as RuneId[], icon: "💚", radius: 0, hostile: false, color: 0x5ee07a },
 } as const;
 export type SpellId = keyof typeof SPELLS;
 export const SPELL_IDS = Object.keys(SPELLS) as SpellId[];
 
-/** Runes every new bunny knows (for now: the fireball's). Later runes could be learned from scrolls or teachers. */
-export const STARTER_RUNES: RuneId[] = ["ka", "ash", "dom"];
+/** Runes every new bunny knows (for now: those of every spell). Later runes could be learned from scrolls or teachers. */
+export const STARTER_RUNES: RuneId[] = ["ka", "ash", "dom", "ul", "tor", "sel"];
 
 /** The hotbar keys of the spell slots, in the order they fill up. */
 export const SPELL_SLOTS = ["X", "C", "V", "B"] as const;
@@ -53,33 +59,44 @@ export function spellOf(runes: readonly (RuneId | null)[]): SpellId | null {
 /** Why a scroll didn't give a spell (shown to the caster; texts: "magic.fail.<reason>"). */
 export type CastFail = "empty" | "unreadable" | "unknownRune" | "noSpell" | "busy";
 
-// ---------------- the fireball ----------------
-export const FIREBALL = {
-  baseDamage: 2, // damage = 2 + Intelligence, then the target's armor is subtracted (never below 0)
-  radiusTiles: 1, // explodes on the target tile and the 8 around it
-  rangeTiles: 8, // how far you can throw it (target tile center, from the caster)
-  speed: 650, // px/s in flight; the explosion (and the damage) happens when it lands
-};
-export const FIREBALL_RANGE = FIREBALL.rangeTiles * TILE_SIZE;
-
-/** Fireball damage before armor. */
-export const fireballPower = (intelligence: number) => FIREBALL.baseDamage + intelligence;
+// ---------------- aiming ----------------
+/** How far a spell reaches (target tile center, from the caster), in tiles. */
+export const SPELL_RANGE_TILES = 8;
+export const SPELL_RANGE = SPELL_RANGE_TILES * TILE_SIZE;
 
 /** Center of a tile in pixels. */
 export const tileCenter = (tx: number, ty: number) => ({ x: (tx + 0.5) * TILE_SIZE, y: (ty + 0.5) * TILE_SIZE });
 
-/** Can a bunny at (x, y) throw a fireball at tile (tx, ty)? */
-export const inFireballRange = (x: number, y: number, tx: number, ty: number) => {
+/** Can a bunny at (x, y) cast a spell at tile (tx, ty)? */
+export const inSpellRange = (x: number, y: number, tx: number, ty: number) => {
   const c = tileCenter(tx, ty);
-  return Math.hypot(c.x - x, c.y - y) <= FIREBALL_RANGE;
+  return Math.hypot(c.x - x, c.y - y) <= SPELL_RANGE;
 };
 
+/** Is someone standing at (x, y) inside the area of a spell (`radius` tiles around tile (tx, ty))? */
+export const inArea = (x: number, y: number, tx: number, ty: number, radius: number) =>
+  Math.abs(Math.floor(x / TILE_SIZE) - tx) <= radius && Math.abs(Math.floor(y / TILE_SIZE) - ty) <= radius;
+
+// ---------------- the fireball ----------------
+export const FIREBALL = {
+  baseDamage: 2, // damage = 2 + Intelligence, then the target's armor is subtracted (never below 0)
+  radiusTiles: SPELLS.fireball.radius, // explodes on the target tile and the 8 around it
+  speed: 650, // px/s in flight; the explosion (and the damage) happens when it lands
+};
+
+/** Fireball damage before armor. */
+export const fireballPower = (intelligence: number) => FIREBALL.baseDamage + intelligence;
+
 /** Is someone standing at (x, y) caught in the blast of a fireball landing on tile (tx, ty)? */
-export const inBlast = (x: number, y: number, tx: number, ty: number) =>
-  Math.abs(Math.floor(x / TILE_SIZE) - tx) <= FIREBALL.radiusTiles && Math.abs(Math.floor(y / TILE_SIZE) - ty) <= FIREBALL.radiusTiles;
+export const inBlast = (x: number, y: number, tx: number, ty: number) => inArea(x, y, tx, ty, FIREBALL.radiusTiles);
 
 /** Flight time of a fireball from (x, y) to tile (tx, ty), in ms. */
 export const fireballFlightMs = (x: number, y: number, tx: number, ty: number) => {
   const c = tileCenter(tx, ty);
   return Math.round((Math.hypot(c.x - x, c.y - y) / FIREBALL.speed) * 1000);
 };
+
+// ---------------- healing ----------------
+/** Healing: every bunny standing on the target tile (the caster too) gets back 5 + 2 × Intelligence HP (up to its max). */
+export const HEALING = { base: 5, perIntelligence: 2 };
+export const healAmount = (intelligence: number) => HEALING.base + HEALING.perIntelligence * intelligence;

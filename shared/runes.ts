@@ -14,7 +14,7 @@
 //      like the Ka hook (a sharp corner) and the Dom arc (smooth): a difference in sharpness adds up to
 //      CORNER_PENALTY to the distance.
 //      Closed loops (a circle, a box) are counted the same way (LOOP_PENALTY), so a circle isn't read
-//      as an arc.
+//      as an arc, and so is which way the lines run (DIRECTION_PENALTY), so "=" isn't read as a "T".
 //   5. The closest rune wins if it is close enough (RUNE_TOLERANCE) and the group has about as many
 //      strokes as the rune (a rune with three lines can't be drawn with one).
 //
@@ -39,7 +39,7 @@ const line = (...pts: [number, number][]): Stroke => pts.map(([x, y]) => ({ x, y
 
 /**
  * The runes, each as the strokes of a model drawing (y grows downward, like on the screen).
- * Fireball = Ka (create) + Ash (fire) + Dom (burst).
+ * Fireball = Ka (create) + Ash (fire) + Dom (burst). Healing = Ul (life) + Tor (give) + Sel (mend).
  */
 export const RUNE_SHAPES = {
   // A hook: up the left side, across the top and curving down to the right
@@ -48,6 +48,12 @@ export const RUNE_SHAPES = {
   ash: [line([133, 237], [215, 310]), line([152, 271], [127, 300]), line([172, 284], [144, 316])],
   // A dome: a half circle, open at the bottom
   dom: [arc(170, 410, 48, 56, Math.PI, Math.PI * 2)],
+  // Two parallel "\\" side by side, the right one a little higher and longer
+  ul: [line([45, 45], [95, 100]), line([68, 25], [125, 90])],
+  // A "T": a flat bar with a post hanging from it
+  tor: [line([30, 167], [147, 165]), line([82, 167], [82, 238])],
+  // A long "/" with a short "\\" leaning against its lower half
+  sel: [line([40, 342], [138, 260]), line([100, 312], [128, 346])],
 } satisfies Record<string, Stroke[]>;
 
 export type RuneId = keyof typeof RUNE_SHAPES;
@@ -55,7 +61,7 @@ export const RUNE_IDS = Object.keys(RUNE_SHAPES) as RuneId[];
 
 // ---------------- tuning ----------------
 /** How far a drawing may be from the rune (average point distance, as a share of the rune's size). Higher = more forgiving. */
-export const RUNE_TOLERANCE = 0.12;
+export const RUNE_TOLERANCE = 0.15;
 /** Added to the distance when a smooth rune is drawn with a sharp corner, or the other way round. */
 export const CORNER_PENALTY = 0.08;
 /** Turns (degrees, within a few points of a line) up to this are smooth curves; from SHARP_TURN on they are corners. */
@@ -63,6 +69,8 @@ export const SMOOTH_TURN = 50;
 export const SHARP_TURN = 80;
 /** Added to the distance for every closed loop (a stroke ending where it started) the drawing has more or fewer than the rune. */
 export const LOOP_PENALTY = 0.08;
+/** Added to the distance in proportion to how differently the lines run (all of them in other directions = the full amount). */
+export const DIRECTION_PENALTY = 0.15;
 /** A rune may be drawn with up to this many strokes more than the model (lifting the mouse mid-line is fine). */
 export const EXTRA_STROKES_ALLOWED = 2;
 /** Strokes shorter than this (share of the scroll's width) are ignored: taps and specks. */
@@ -185,6 +193,32 @@ export function sharpness(cloud: CloudPt[]): number {
   return Math.max(0, Math.min(1, (deg - SMOOTH_TURN) / (SHARP_TURN - SMOOTH_TURN)));
 }
 
+/**
+ * Which way the lines run: how much of the drawing goes horizontal, vertical, and along the two
+ * diagonals (shares adding up to 1; a line's direction doesn't matter, "/" drawn up or down is the same).
+ * Keeps apart shapes made of straight lines that the point matching alone confuses, like a "T" and "=".
+ */
+export function directions(cloud: CloudPt[]): number[] {
+  const bins = [0, 0, 0, 0]; // 0°, 45°, 90°, 135°
+  for (let i = 1; i < cloud.length; i++) {
+    const a = cloud[i - 1];
+    const b = cloud[i];
+    if (a.s !== b.s) continue;
+    const len = dist(a, b);
+    if (len < 1e-6) continue;
+    let deg = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
+    deg = ((deg % 180) + 180) % 180; // 0..180, either way along the line
+    const pos = deg / 45; // between two neighbouring bins: split by how close it is to each
+    const lo = Math.floor(pos) % 4;
+    const f = pos - Math.floor(pos);
+    bins[lo] += len * (1 - f);
+    bins[(lo + 1) % 4] += len * f;
+  }
+  const total = bins.reduce((x, y) => x + y, 0) || 1;
+  return bins.map((v) => v / total);
+}
+const directionGap = (a: number[], b: number[]) => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]), 0) / 2; // 0..1
+
 /** Strokes that end about where they started (a circle, a box), relative to the whole rune's size. */
 export function countLoops(strokes: Stroke[]): number {
   const pts = strokes.flat();
@@ -197,7 +231,14 @@ export function countLoops(strokes: Stroke[]): number {
 
 const MODELS = RUNE_IDS.map((id) => {
   const cloud = normalize(RUNE_SHAPES[id])!;
-  return { id, strokes: RUNE_SHAPES[id].length, cloud, sharpness: sharpness(cloud), loops: countLoops(RUNE_SHAPES[id]) };
+  return {
+    id,
+    strokes: RUNE_SHAPES[id].length,
+    cloud,
+    sharpness: sharpness(cloud),
+    loops: countLoops(RUNE_SHAPES[id]),
+    directions: directions(cloud),
+  };
 });
 
 export interface RuneGuess {
@@ -215,10 +256,12 @@ export function readRune(strokes: Stroke[]): Omit<RuneGuess, "top" | "bottom"> {
   if (cloud) {
     const sharp = sharpness(cloud);
     const loops = countLoops(strokes);
+    const dirs = directions(cloud);
     for (const m of MODELS) {
       if (strokes.length < m.strokes || strokes.length > m.strokes + EXTRA_STROKES_ALLOWED) continue;
       const score = cloudMatch(cloud, m.cloud) + CORNER_PENALTY * Math.abs(sharp - m.sharpness) +
-        LOOP_PENALTY * Math.abs(loops - m.loops);
+        LOOP_PENALTY * Math.abs(loops - m.loops) +
+        DIRECTION_PENALTY * directionGap(dirs, m.directions);
       if (score < best.score) best = { id: m.id, score };
     }
   }

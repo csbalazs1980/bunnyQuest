@@ -2,8 +2,9 @@
 //
 // Put PNGs (64x64) in client/src/assets/tiles/, named after the terrain (see "name" in map.json):
 //   grass.png                      -> used for every grass tile
-//   grass1.png, grass2.png, ...    -> if any numbered ones exist, each grass tile uses one of them
-//                                     (the plain grass.png is then ignored)
+//   grass1.png, grass2.png, ...    -> each grass tile uses one of them; a plain grass.png, if there is
+//                                     one, takes part too (e.g. city.png + city2..7: the plain grey city
+//                                     tile, 4 houses, a temple and a park, each about as often)
 //   nothing at all                 -> the terrain's plain color from map.json is drawn instead
 // New files are picked up automatically (no code or map changes needed).
 
@@ -14,7 +15,7 @@ export const TILE_FILES = import.meta.glob("./assets/tiles/*.png", {
   import: "default",
 }) as Record<string, string>;
 
-/** URLs of the pictures for one terrain name, in order (grass1, grass2, ...), or [] if there are none. */
+/** URLs of the pictures for one terrain name, in order (grass, grass1, grass2, ...), or [] if there are none. */
 export function tileVariants(name: string, files: Record<string, string> = TILE_FILES): string[] {
   const numbered: [number, string][] = [];
   let plain: string | undefined;
@@ -27,7 +28,7 @@ export function tileVariants(name: string, files: Record<string, string> = TILE_
     }
   }
   numbered.sort((a, b) => a[0] - b[0]);
-  return numbered.length ? numbered.map(([, url]) => url) : plain ? [plain] : [];
+  return [...(plain ? [plain] : []), ...numbered.map(([, url]) => url)];
 }
 
 /**

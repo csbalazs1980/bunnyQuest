@@ -1,9 +1,11 @@
 // Magic effects drawn in the game world: glowing red, sparkling eyes while a bunny draws on its scroll,
-// the fireball (flight, explosion on 3×3 tiles, scorch marks) and the target shown while aiming one.
+// the fireball (flight, explosion on 3×3 tiles, scorch marks), healing (a beam of green light) and the
+// target shown while aiming a spell.
 import Phaser from "phaser";
 import { TILE_SIZE } from "../../shared/combat";
-import { FIREBALL, inFireballRange, tileCenter } from "../../shared/magic";
+import { FIREBALL, inSpellRange, tileCenter } from "../../shared/magic";
 import { t } from "./i18n";
+import { eyeOffsets } from "./bunnySprite";
 
 const FX_DEPTH = 200000; // above characters (their depth is their y position), like src/fx.ts
 const SCORCH_MS = 8000; // how long the burnt ground stays
@@ -19,7 +21,6 @@ export class MagicFx {
   private aim: Phaser.GameObjects.Graphics;
 
   constructor(private scene: Phaser.Scene) {
-    makeEyesTexture(scene);
     this.aim = scene.add.graphics().setDepth(-0.4).setVisible(false); // on the ground, under the characters
   }
 
@@ -27,7 +28,7 @@ export class MagicFx {
   setCasting(sprite: Phaser.GameObjects.Sprite, on: boolean) {
     const glow = this.glows.get(sprite);
     if (on && !glow) {
-      const eyes = this.scene.add.image(sprite.x, sprite.y, "bunny-eyes");
+      const eyes = this.scene.add.image(sprite.x, sprite.y, "bunny-eyes", sprite.frame.name); // made in src/bunnySprite.ts
       this.glows.set(sprite, { sprite, eyes, nextSparkAt: 0 });
     } else if (!on && glow) {
       glow.eyes.destroy();
@@ -44,19 +45,21 @@ export class MagicFx {
         continue;
       }
       g.eyes
+        .setFrame(s.frame.name) // the eyes move with the hopping frames
         .setPosition(s.x, s.y)
         .setFlipX(s.flipX)
         .setDepth(s.depth + 0.5)
         .setAlpha(0.8 + 0.2 * Math.sin(time / 110));
       if (time < g.nextSparkAt) continue;
       g.nextSparkAt = time + 35;
-      // Sparkles rise from one of the two eyes (the eyes are at x -7.5 and +4.5, mirrored when flipped)
-      const eyeX = (Math.random() < 0.5 ? -7.5 : 4.5) * (s.flipX ? -1 : 1);
+      // Sparkles rise from one of the eyes (mirrored when the bunny faces left)
+      const eye = Phaser.Utils.Array.GetRandom(eyeOffsets[Number(s.frame.name)] ?? [{ x: 0, y: 0 }]) ?? { x: 0, y: 0 };
+      const eyeX = eye.x * (s.flipX ? -1 : 1);
       // (no additive blending: it would vanish on white bunnies)
       const color = Phaser.Utils.Array.GetRandom([0xff2020, 0xff5a1a, 0xffa020, 0xffe040]);
       const size = Math.random() < 0.35 ? 4 : 3;
       const spark = this.scene.add
-        .rectangle(s.x + eyeX + Phaser.Math.Between(-3, 3), s.y + 1.5 + Phaser.Math.Between(-2, 2), size, size, color)
+        .rectangle(s.x + eyeX + Phaser.Math.Between(-3, 3), s.y + eye.y + Phaser.Math.Between(-2, 2), size, size, color)
         .setDepth(s.depth + 0.6);
       this.scene.tweens.add({
         targets: spark,
@@ -69,16 +72,25 @@ export class MagicFx {
     }
   }
 
-  /** The target while aiming a fireball: the 3×3 tiles it would burn, red when out of reach. Null hides it. */
-  showAim(from: { x: number; y: number } | null, worldX = 0, worldY = 0): { tx: number; ty: number; ok: boolean } | null {
+  /**
+   * The target while aiming a spell: the tiles it would cover (`radius` tiles around the one under the
+   * pointer) in the spell's color, red when out of reach. Null hides it.
+   */
+  showAim(
+    from: { x: number; y: number } | null,
+    worldX = 0,
+    worldY = 0,
+    radius = 1,
+    spellColor = 0xff8a2a
+  ): { tx: number; ty: number; ok: boolean } | null {
     this.aim.clear();
     this.aim.setVisible(!!from);
     if (!from) return null;
     const tx = Math.floor(worldX / TILE_SIZE);
     const ty = Math.floor(worldY / TILE_SIZE);
-    const ok = inFireballRange(from.x, from.y, tx, ty);
-    const color = ok ? 0xff8a2a : 0xe03030;
-    const r = FIREBALL.radiusTiles;
+    const ok = inSpellRange(from.x, from.y, tx, ty);
+    const color = ok ? spellColor : 0xe03030;
+    const r = radius;
     const x0 = (tx - r) * TILE_SIZE;
     const y0 = (ty - r) * TILE_SIZE;
     const size = (2 * r + 1) * TILE_SIZE;
@@ -150,6 +162,46 @@ export class MagicFx {
     if (Phaser.Geom.Rectangle.Contains(cam.worldView, c.x, c.y)) cam.shake(180, 0.004);
   }
 
+  /**
+   * Healing on tile (tx, ty): a beam of green light comes down on the tile, little green crosses rise
+   * from it, and every healed bunny glows for a moment (how much it healed is not shown).
+   */
+  heal(tx: number, ty: number, healed: Phaser.GameObjects.Sprite[]) {
+    const x = tx * TILE_SIZE;
+    const y = ty * TILE_SIZE;
+    const beamH = TILE_SIZE * 3;
+    const beam = this.scene.add.graphics().setDepth(FX_DEPTH - 1);
+    // The beam: stripes that are brightest in the middle, fading upward (pixel style, no blur)
+    for (let i = 0; i < 8; i++) {
+      const w = TILE_SIZE * (1 - i * 0.11);
+      beam.fillStyle(i < 3 ? 0x9cf5a8 : 0xd8ffd8, 0.1 + i * 0.04);
+      beam.fillRect(x + (TILE_SIZE - w) / 2, y + TILE_SIZE - beamH, w, beamH);
+    }
+    beam.fillStyle(0x5ee07a, 0.45).fillRect(x, y, TILE_SIZE, TILE_SIZE); // the tile itself
+    beam.setAlpha(0).setScale(1, 1);
+    this.scene.tweens.add({ targets: beam, alpha: 1, duration: 140, yoyo: true, hold: 380, onComplete: () => beam.destroy() });
+    for (let i = 0; i < 14; i++) {
+      this.scene.time.delayedCall(i * 45, () =>
+        this.cross(x + Phaser.Math.Between(6, TILE_SIZE - 6), y + Phaser.Math.Between(TILE_SIZE / 2, TILE_SIZE - 4))
+      );
+    }
+    for (const s of healed) {
+      if (!s.active) continue;
+      this.scene.tweens.add({ targets: s, scale: { from: 1.15, to: 1 }, duration: 380, ease: "Back.easeOut" });
+      for (let i = 0; i < 5; i++) this.scene.time.delayedCall(120 + i * 90, () => s.active && this.cross(s.x + Phaser.Math.Between(-14, 14), s.y - 8));
+    }
+  }
+
+  /** A little green pixel cross floating up and fading. */
+  private cross(x: number, y: number) {
+    const c = this.scene.add.graphics().setDepth(FX_DEPTH);
+    const color = Phaser.Utils.Array.GetRandom([0x5ee07a, 0x9cf5a8, 0xffffff]);
+    c.fillStyle(0x1e6b2e, 1).fillRect(-4, -2, 8, 4).fillRect(-2, -4, 4, 8); // dark outline
+    c.fillStyle(color, 1).fillRect(-3, -1, 6, 2).fillRect(-1, -3, 2, 6);
+    c.setPosition(x, y);
+    this.scene.tweens.add({ targets: c, y: y - Phaser.Math.Between(26, 44), alpha: 0, duration: Phaser.Math.Between(600, 900), onComplete: () => c.destroy() });
+  }
+
   /** A pixel ember: moves by (vx, vy) over `ms` and fades. */
   private ember(x: number, y: number, vx: number, vy: number, size: number, ms: number) {
     const color = Phaser.Utils.Array.GetRandom([0xff3a10, 0xff7a1a, 0xffb040, 0xffe070]);
@@ -196,23 +248,4 @@ export class MagicFx {
     this.scene.tweens.add({ targets: fx, scale: 1, duration: 140, ease: "Back.easeOut" });
     this.scene.tweens.add({ targets: fx, alpha: 0, delay: 650, duration: 220, onComplete: () => fx.destroy() });
   }
-}
-
-/**
- * The bunny's two eyes, glowing red, as an overlay with the same size as the bunny texture
- * (GameScene makeBunnyTexture: 12 × 14 pixels at 3x scale, eyes at column 3 and 7 of row 7).
- */
-function makeEyesTexture(scene: Phaser.Scene) {
-  if (scene.textures.exists("bunny-eyes")) return;
-  const S = 3;
-  const g = scene.make.graphics({}, false);
-  for (const col of [3, 7]) {
-    g.fillStyle(0xff3030, 0.3); // a soft glow in a "+" shape...
-    g.fillRect((col - 2) * S, 7 * S, 5 * S, S).fillRect(col * S, 5 * S, S, 5 * S);
-    g.fillStyle(0xff2020, 0.45).fillRect((col - 1) * S, 6 * S, 3 * S, 3 * S); // ...brighter near the eye
-    g.fillStyle(0xff0000, 1).fillRect(col * S, 7 * S, S, S);
-    g.fillStyle(0xffe0a0, 1).fillRect(col * S + 1, 7 * S + 1, 1, 1); // a hot glint
-  }
-  g.generateTexture("bunny-eyes", 12 * S, 14 * S);
-  g.destroy();
 }

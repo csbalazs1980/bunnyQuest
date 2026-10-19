@@ -145,6 +145,14 @@ export const hu: Dict = {
   "rune.ash.meaning": "tűz",
   "rune.dom": "Dom",
   "rune.dom.meaning": "robbanás",
+  "spell.healing": "Gyógyítás",
+  "spell.healing.desc": "Meggyógyít minden nyuszit, aki egy adott mezőn áll, téged is. Az Intelligencia erősíti.",
+  "rune.ul": "Ul",
+  "rune.ul.meaning": "élet",
+  "rune.tor": "Tor",
+  "rune.tor.meaning": "adás",
+  "rune.sel": "Sel",
+  "rune.sel.meaning": "gyógyulás",
   "magic.scrollHint": "Rajzold a rúnákat fentről lefelé · engedd el az F-et a varázsláshoz · jobb klikk: tekercs törlése",
   "magic.reading": "A rúnák olvasása…",
   "magic.unknown": "?",
@@ -154,11 +162,11 @@ export const hu: Dict = {
   "magic.fail.unknownRune": "Ezt a rúnát nem ismered",
   "magic.fail.noSpell": "Ezekből a rúnákból nem lesz varázslat",
   "magic.fail.busy": "Most nem!",
-  "magic.aimHint": "{spell}: kattints egy mezőre a dobáshoz · jobb klikk vagy Esc: mégse",
+  "magic.aimHint": "{spell}: kattints egy mezőre, hogy oda varázsold · jobb klikk vagy Esc: mégse",
   "magic.tooFar": "Túl messze!",
   "slot.spell": "{spell} [{key}]: {n} mp múlva elillan\nNyomd meg: {key}, vagy kattints a célzáshoz",
-  "spellbook.spells": "Varázslatok",
-  "spellbook.runes": "Ismert rúnák",
+  "spellbook.pick": "Válassz egy varázslatot, hogy lásd, hogyan kell elvarázsolni",
+  "spellbook.howTo": "Rajzold a tekercsre, fentről lefelé:",
   "spellbook.hint": "Tartsd lenyomva az F-et, rajzold a tekercsre a varázslat rúnáit fentről lefelé, majd engedd el az F-et.",
   "spellbook.none": "Még egy rúnát sem ismersz.",
   "spellbook.missing": "Még nem ismered az összes rúnáját",
@@ -281,13 +289,23 @@ Tartsd lenyomva az [F] gombot, és egy nagy varázstekercs nyílik ki előtted. 
 - A rúnáknak nem kell tökéletesnek lenniük, csak felismerhetőnek. Nagy vagy kicsi, kicsit ferde: mind jó.
 - A **jobb klikk** letörli a tekercset, ha újra akarod kezdeni.
 - Engedd el az [F] gombot, és a tekercs felolvasódik. Egy pillanatig mutatja, melyik rúnát hol ismerte fel (a "?" azt jelenti, hogy azt nem tudta elolvasni).
-- Csak olyan rúnát használhatsz, amit ismersz. A **Varázskönyv** ([P]) megmutatja a rúnáidat és a belőlük készíthető varázslatokat.
+- Csak olyan rúnát használhatsz, amit ismersz. A **Varázskönyvben** ([P]) válassz egy varázslatot a listából, és láthatod a rúnáit sorrendben. Az általad ismert rúnák az oldal alján vannak.
 
 ## Varázshelyek
 A sikerült varázslat egy szabad varázshelyre kerül a gyorssávon: [X], aztán [C], [V] és [B]. Hogy hány ilyen helyed van, az **Intelligenciádtól** függ: eleinte 1, Intelligencia 3-tól 2, 6-tól 3, 8-tól mind a 4. Egy varázslat **1 percig, plusz Intelligencia-pontonként 6 másodpercig** vár a helyén, aztán elillan. Nyomd meg a hely gombját (vagy kattints rá) a használatához; minden töltés egyszer működik. Ha minden helyed tele van, az új varázslat azt váltja le, amelyik a leghamarabb illanna el. Ha kiütnek, elejted a tekercset, és minden feltöltött varázslatod elillan.
 
 ## Tűzgolyó
-Rúnák: **Ka** (teremtés), **Ash** (tűz), **Dom** (robbanás). Nyomd meg a gombját, és egy célkereszt jelenik meg a földön: mozgasd az egérrel, és **kattints** a dobáshoz. A tűzgolyó odarepül, és azon a mezőn meg a körülötte lévő 8 mezőn robban, mindenkit és mindent megsebezve, aki ott áll (kivéve téged). Körülbelül 8 mezőnyire ér el; ha túl messze célzol, a cél pirosra vált. A **jobb klikk** vagy az [Esc] visszavonja.
+Rúnák: **Ka** (teremtés), **Ash** (tűz), **Dom** (robbanás). Nyomd meg a gombját, és egy célkereszt jelenik meg a földön: mozgasd az egérrel, és **kattints** a dobáshoz. A tűzgolyó odarepül, és azon a mezőn meg a körülötte lévő 8 mezőn robban, mindenkit és mindent megsebezve, aki ott áll, **téged is**, ha ilyen közel vagy (ha be van kapcsolva a baráti tűz), úgyhogy tarts távolságot. Körülbelül 8 mezőnyire ér el; ha túl messze célzol, a cél pirosra vált. A **jobb klikk** vagy az [Esc] visszavonja.
 - A sebzése az **Intelligenciáddal** nő. A páncél tompítja, de pajzzsal nem lehet kivédeni.
-- Ha a baráti tűz ki van kapcsolva, más nyuszikat nem sebez meg.`,
+- Ha a baráti tűz ki van kapcsolva, egyetlen nyuszit sem sebez meg, téged sem.
+
+## Gyógyítás
+Rúnák: **Ul** (élet, két párhuzamos, \\ módon dőlő vonal), **Tor** (adás, egy T) és **Sel** (gyógyulás, egy hosszú / és alsó felének dőlő rövid \\). Ugyanúgy célzod, mint a tűzgolyót, de a cél egyetlen mező: kattints, és arra a mezőre varázsolod. Mindenki, aki ott áll, életerőt kap vissza, te is, így a saját meződre célozva magadat gyógyítod.
+- Minél több az **Intelligenciád**, annál többet gyógyít. Senkit sem gyógyít a teljes életereje fölé.
+- Barátra és ellenségre egyaránt hat (állatokra nem), és akkor is használhatod, amikor felébredés után még védett vagy.
+
+## A rúnáid
+Ezeket a rúnákat ismered, a jelentésükkel együtt. Egy varázslathoz az összes rúnája kell.
+
+{{runes}}`,
 };

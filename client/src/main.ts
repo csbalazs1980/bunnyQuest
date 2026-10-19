@@ -132,7 +132,7 @@ function start(room: Room) {
       location.assign(location.pathname);
     }
   });
-  new HelpPanel(); // "?" button under Options (or H)
+  const help = new HelpPanel(); // "?" button under Options (or H)
 
   const scene = new GameScene(room);
   const game = new Phaser.Game({
@@ -172,7 +172,7 @@ function start(room: Room) {
     onSpell: (slot) => scene.aimSpell(slot),
   });
   scene.onAimChange = (slot) => hud.setAiming(slot);
-  const spellbook = new Spellbook(); // P: spells and runes, docks below the stats
+  const spellbook = new Spellbook(); // P: pick a spell, see its runes; docks below the stats
 
   // Magic: hold F to draw runes on the scroll, let go to cast (the server reads the drawing)
   const scroll = new MagicScroll({
@@ -210,7 +210,9 @@ function start(room: Room) {
     const spells: { slot: SpellSlot; spell: any; secondsLeft: number }[] = [];
     me.spells?.forEach((c: any, slot: string) => spells.push({ slot: slot as SpellSlot, spell: c.spell, secondsLeft: c.secondsLeft }));
     hud.setSpells(spells);
-    spellbook.setRunes(Array.from(me.runes ?? []) as string[]);
+    const runes = Array.from(me.runes ?? []) as string[];
+    spellbook.setRunes(runes);
+    help.setRunes(runes); // Help → Magic lists the runes we know
     const equipment: Record<string, string> = {};
     me.equipment.forEach((itemId: string, slot: string) => (equipment[slot] = itemId));
     hud.setPlayer(

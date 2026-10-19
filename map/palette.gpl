@@ -1,0 +1,13 @@
+GIMP Palette
+Name: bunnyQuest map
+Columns: 4
+#
+ 76 175  80	grass
+ 27  94  32	trees
+141 103  62	hills
+ 30  90 170	sea
+ 90 160 230	river
+158 158 158	city
+ 74  58  36	swamp
+242 244 247	summit
+210 180 140	road (roads.png)

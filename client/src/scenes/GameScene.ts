@@ -7,7 +7,8 @@ import { FxLayer } from "../fx";
 import { BubbleLayer } from "../bubbles";
 import { BloodLayer } from "../blood";
 import { MagicFx } from "../magicFx";
-import { tileCenter, type SpellSlot } from "../../../shared/magic";
+import { animateBunny, BUNNY_FRAMES, BUNNY_SCALE, knockOutBunny, loadBunny, resetBunny, setupBunny, viewOf, viewOfFacing } from "../bunnySprite";
+import { SPELLS, tileCenter, type SpellId, type SpellSlot } from "../../../shared/magic";
 import { enemyMaxHp } from "../../../shared/enemies";
 import { itemView, type ItemView } from "../../../shared/items";
 import { t, type TKey } from "../i18n";
@@ -21,6 +22,10 @@ import {
 } from "../../../shared/combat";
 
 const world = new World(mapJson as MapData);
+
+/** Killed enemies lie where they fell this long, then fade away over CORPSE_FADE_MS. */
+const CORPSE_STAYS_MS = 60_000;
+const CORPSE_FADE_MS = 3_000;
 
 type Input = { left: boolean; right: boolean; up: boolean; down: boolean };
 
@@ -94,13 +99,14 @@ export class GameScene extends Phaser.Scene {
 
   /** Loads the tile pictures: one per terrain, or several numbered variants (see src/tiles.ts). */
   preload() {
+    loadBunny(this); // src/assets/characters/bunny.png (see src/bunnySprite.ts)
     for (const [key, t] of Object.entries(world.map.terrain)) {
       tileVariants(t.name).forEach((url, i) => this.load.image(`terrain-${key}-${i}`, url));
     }
   }
 
   create() {
-    makeBunnyTexture(this);
+    setupBunny(this); // hopping animation + glowing eyes overlay
     makeRatTexture(this);
     makeCrusaderTextures(this);
     this.banner.id = "life-banner";
@@ -144,7 +150,7 @@ export class GameScene extends Phaser.Scene {
     // React to server state changes
     const $ = getStateCallbacks(this.room);
     $(this.room.state).players.onAdd((player: any, sessionId: string) => {
-      const sprite = this.add.sprite(player.x, player.y, "bunny").setTint(player.color);
+      const sprite = this.add.sprite(player.x, player.y, "bunny", BUNNY_FRAMES.idle).setScale(BUNNY_SCALE).setTint(player.color);
       const label = this.add
         .text(player.x, player.y, player.name, {
           fontFamily: "monospace",
@@ -216,8 +222,12 @@ export class GameScene extends Phaser.Scene {
       this.bubbles.clear(view.sprite);
       view.label?.destroy();
       if (!view.dying) return view.sprite.destroy();
-      // Killed: fades away (rats lie belly up, crusaders have fallen over)
-      this.tweens.add({ targets: view.sprite, alpha: 0, y: view.sprite.y - 10, delay: 350, duration: 450, onComplete: () => view.sprite.destroy() });
+      // Killed: the body stays on the ground for a while (rats lie belly up, crusaders have fallen over),
+      // then slowly fades. Only a picture: the server has already removed it, so nobody bumps into it.
+      const body = view.sprite;
+      this.tweens.killTweensOf(body);
+      body.setAlpha(1).setDepth(-0.3); // on the ground: above scorch marks, under everyone still standing
+      this.tweens.add({ targets: body, alpha: 0, delay: CORPSE_STAYS_MS, duration: CORPSE_FADE_MS, onComplete: () => body.destroy() });
     });
 
     $(this.room.state).players.onRemove((_player: any, sessionId: string) => {
@@ -310,6 +320,13 @@ export class GameScene extends Phaser.Scene {
           this.magic.fireball(from.x, from.y, m.tx, m.ty, m.ms);
           break;
         }
+        case "heal": {
+          const to = tileCenter(m.tx, m.ty);
+          if (to.x !== sprite.x) sprite.setFlipX(to.x < sprite.x); // the caster faces the tile
+          const healed = m.healed.map((id) => this.bunnies.get(id)?.sprite).filter((s): s is Phaser.GameObjects.Sprite => !!s);
+          this.magic.heal(m.tx, m.ty, healed);
+          break;
+        }
         case "respawn": {
           const view = this.bunnies.get(m.id);
           if (view) view.snap = true; // jump to the start town instead of sliding across the map
@@ -383,7 +400,8 @@ export class GameScene extends Phaser.Scene {
     if (this.aiming === slot) return this.stopAim();
     const charged = this.myState()?.spells?.get(slot);
     if (!charged) return;
-    if (me.life.state === "protected") return this.fx.say(me.sprite, t("fx.protected")); // just respawned: no attacking
+    const hostile = SPELLS[charged.spell as SpellId]?.hostile;
+    if (hostile && me.life.state === "protected") return this.fx.say(me.sprite, t("fx.protected")); // just respawned: no attacking
     this.aiming = slot;
     this.aimHint.textContent = t("magic.aimHint", { spell: t(`spell.${charged.spell}` as TKey) });
     this.aimHint.hidden = false;
@@ -402,11 +420,17 @@ export class GameScene extends Phaser.Scene {
   private throwSpell(me: BunnyView, pointer: Phaser.Input.Pointer, right: boolean) {
     const slot = this.aiming!;
     if (right) return this.stopAim();
-    const target = this.magic.showAim(me.sprite, pointer.worldX, pointer.worldY);
+    const target = this.showAim(me, pointer.worldX, pointer.worldY);
     if (!target) return;
     if (!target.ok) return this.fx.say(me.sprite, t("magic.tooFar"));
     this.stopAim();
     this.room.send("spell", { slot, tx: target.tx, ty: target.ty });
+  }
+
+  /** Draws the target of the spell being aimed (its area and color) under (x, y); returns the tile. */
+  private showAim(me: BunnyView, x: number, y: number) {
+    const spell = SPELLS[this.myState()?.spells?.get(this.aiming)?.spell as SpellId] ?? SPELLS.fireball;
+    return this.magic.showAim(me.sprite, x, y, spell.radius, spell.color);
   }
 
   private myState(): any {
@@ -499,6 +523,8 @@ export class GameScene extends Phaser.Scene {
         const next = world.step(s.x, s.y, dx, dy, dt, mySpeed, this.bodiesAround(s)); // same rules as the server
         s.setPosition(next.x, next.y);
         if (dx) s.setFlipX(dx < 0);
+        // hop while walking: front when going down (also diagonally), side for left/right and up+left/right, back for up
+        if (view.life.state !== "out") animateBunny(s, !!(dx || dy), dx || dy ? viewOf(dx, dy) : undefined);
 
         // Gently correct toward the server's position (snap if we are way off)
         const err = Phaser.Math.Distance.Between(s.x, s.y, view.targetX, view.targetY);
@@ -509,6 +535,8 @@ export class GameScene extends Phaser.Scene {
         // Other players: smooth interpolation toward their latest server position
         s.x = Phaser.Math.Linear(s.x, view.targetX, 0.25);
         s.y = Phaser.Math.Linear(s.y, view.targetY, 0.25);
+        // the server says whether they walk, and which way they face
+        if (view.life.state !== "out") animateBunny(s, !!view.state.moving, viewOfFacing(view.state.facing));
       }
       s.setDepth(s.y); // simple y-sorting so bunnies overlap correctly
       if (view.life.state !== "out" && view.state.maxHp > 0) this.bleedTrail(s, view.drip, view.state.hp / view.state.maxHp);
@@ -543,10 +571,11 @@ export class GameScene extends Phaser.Scene {
     // Aiming a spell: the target follows the pointer (which stays put on screen while the camera moves)
     if (this.aiming) {
       const charged = this.myState()?.spells?.get(this.aiming);
-      if (!me || me.life.state !== "alive" || !charged) this.stopAim(); // knocked out, or the spell faded
+      const hostile = SPELLS[charged?.spell as SpellId]?.hostile;
+      if (!me || me.life.state === "out" || (hostile && me.life.state !== "alive") || !charged) this.stopAim(); // knocked out, or the spell faded
       else {
         const p = this.input.activePointer.positionToCamera(this.cameras.main) as Phaser.Math.Vector2;
-        this.magic.showAim(me.sprite, p.x, p.y);
+        this.showAim(me, p.x, p.y);
       }
     }
 
@@ -569,13 +598,15 @@ export class GameScene extends Phaser.Scene {
       s.setAlpha(1);
       if (life.state === "out") {
         if (prev.state !== "out" && view.state.hp === 0) this.blood.pool(s.x, s.y);
-        s.setTexture("bunny-ko").setTint(greyed(view.color)); // stays upright so the pixel x.x stays crisp
+        knockOutBunny(s); // stays upright so the pixel x.x stays crisp
+        s.setTint(greyed(view.color));
         this.tweens.add({ targets: s, alpha: { from: 0.2, to: 1 }, duration: 120, repeat: 2 }); // knock-out flash
         view.countdown ??= this.add
           .text(s.x, s.y, "", { fontFamily: "monospace", fontSize: "18px", fontStyle: "bold", color: "#ffffff", stroke: "#000000", strokeThickness: 4 })
           .setOrigin(0.5, 1);
       } else {
-        s.setTexture("bunny").setTint(view.color);
+        resetBunny(s);
+        s.setTint(view.color);
         view.countdown?.destroy();
         view.countdown = undefined;
         if (life.state === "protected") {
@@ -802,45 +833,3 @@ function lifeOf(player: any): Life {
 
 /** The player's color, faded halfway to grey (knocked out). */
 const greyed = (c: number) => ((c >> 1) & 0x7f7f7f) + 0x404040;
-
-/**
- * Draws a tiny pixel-art bunny in code (white, so it can be tinted per player), scaled up 3x.
- * Replace with a real sprite sheet later (e.g. this.load.spritesheet in a preload()).
- */
-function makeBunnyTexture(scene: Phaser.Scene) {
-  const S = 3; // pixel scale
-  const rows = [
-    "..W.....W...",
-    ".WPW...WPW..",
-    ".WPW...WPW..",
-    ".WPW...WPW..",
-    ".WWW...WWW..",
-    "..WWWWWWW...",
-    ".WWWWWWWWW..",
-    ".WWKWWWKWW..",
-    ".WWWWPWWWW..",
-    "..WWWWWWW...",
-    ".WWWWWWWWW..",
-    "WWWWWWWWWWW.",
-    ".WWWWWWWWWW.",
-    "..WW....WW..",
-  ];
-  // Knocked out: the eyes become little crosses with the nose between them, x.x
-  const koRows = [...rows];
-  koRows[6] = ".KWKWWWKWK..";
-  koRows[7] = ".WKWWPWWKW..";
-  koRows[8] = ".KWKWWWKWK..";
-  const palette: Record<string, number> = { W: 0xffffff, P: 0xf2a7c3, K: 0x222222 };
-  for (const [key, art] of [["bunny", rows], ["bunny-ko", koRows]] as const) {
-    const g = scene.make.graphics({}, false);
-    art.forEach((row, y) =>
-      [...row].forEach((c, x) => {
-        if (palette[c] === undefined) return;
-        g.fillStyle(palette[c]);
-        g.fillRect(x * S, y * S, S, S);
-      })
-    );
-    g.generateTexture(key, 12 * S, 14 * S);
-    g.destroy();
-  }
-}

@@ -34,8 +34,11 @@ import {
   CAST_COOLDOWN_MS,
   fireballFlightMs,
   fireballPower,
+  healAmount,
+  inArea,
   inBlast,
-  inFireballRange,
+  inSpellRange,
+  SPELLS,
   spellChargeMs,
   spellSlotsFor,
   spellOf,
@@ -176,18 +179,21 @@ export class GameRoom extends Room<GameState> {
       if (p) p.casting = !!msg?.open && !p.deadUntil;
     });
     this.onMessage("cast", (client, msg: { strokes: unknown }) => this.readScroll(client, msg?.strokes));
-    // Use a charged spell: for now only the fireball, thrown at a tile
+    // Use a charged spell on a tile: the fireball is thrown there, healing heals whoever stands there
     this.onMessage("spell", (client, msg: { slot: string; tx: number; ty: number }) => {
       const p = this.state.players.get(client.sessionId);
       const now = Date.now();
-      if (!p || p.deadUntil || p.protectedUntil > now) return; // knocked out / just woke up: no attacking
+      if (!p || p.deadUntil) return; // knocked out
       const charged = typeof msg?.slot === "string" ? p.spells.get(msg.slot) : undefined;
       const { tx, ty } = msg ?? {};
       if (!charged || !Number.isInteger(tx) || !Number.isInteger(ty)) return;
+      const spell = SPELLS[charged.spell as keyof typeof SPELLS];
+      if (!spell || (spell.hostile && p.protectedUntil > now)) return; // just woke up: no attacking yet
       if (tx < 0 || ty < 0 || tx >= world.map.rows[0].length || ty >= world.map.rows.length) return;
-      if (!inFireballRange(p.x, p.y, tx, ty)) return; // (the client checks this too, with the same rule)
+      if (!inSpellRange(p.x, p.y, tx, ty)) return; // (the client checks this too, with the same rule)
       p.spells.delete(msg.slot); // one charge, one cast
       if (charged.spell === "fireball") this.throwFireball(client.sessionId, p, tx, ty);
+      else if (charged.spell === "healing") this.heal(client.sessionId, p, tx, ty);
     });
 
     // Server is authoritative: it moves everyone based on their latest input.
@@ -287,7 +293,7 @@ export class GameRoom extends Room<GameState> {
   /**
    * A fireball flies to tile (tx, ty) and explodes there and on the 8 tiles around it. Everyone sees it
    * fly; the damage (2 + the caster's Intelligence, minus each target's armor; it can't be blocked)
-   * happens when it lands. The caster is never hurt by their own fireball.
+   * happens when it lands. With friendly fire on it hurts the caster too if they stand in the blast.
    */
   private throwFireball(casterId: string, p: Player, tx: number, ty: number) {
     const ms = fireballFlightMs(p.x, p.y, tx, ty);
@@ -296,7 +302,7 @@ export class GameRoom extends Room<GameState> {
     this.clock.setTimeout(() => {
       const now = Date.now();
       this.state.players.forEach((target, targetId) => {
-        if (targetId === casterId || !this.state.friendlyFire) return; // friendly fire off: bunnies are safe
+        if (!this.state.friendlyFire) return; // friendly fire off: bunnies are safe, the caster too
         if (target.deadUntil || target.protectedUntil > now || !inBlast(target.x, target.y, tx, ty)) return;
         const dmg = damage(power, 0, combatOf(target).armor, false);
         this.broadcast("fx", { kind: "hit", id: targetId, by: casterId, bleed: DAMAGE_ENABLED && dmg > 0 } satisfies CombatFx);
@@ -311,6 +317,21 @@ export class GameRoom extends Room<GameState> {
         if (died) this.broadcast("fx", { kind: "death", id } satisfies CombatFx);
       });
     }, ms);
+  }
+
+  /**
+   * Healing on tile (tx, ty): every bunny standing there that isn't knocked out (the caster too) gets back
+   * 5 + 2 × the caster's Intelligence HP, up to its maximum. Animals aren't healed.
+   */
+  private heal(casterId: string, p: Player, tx: number, ty: number) {
+    const amount = healAmount(p.stats.intelligence);
+    const healed: string[] = [];
+    this.state.players.forEach((target, id) => {
+      if (target.deadUntil || !inArea(target.x, target.y, tx, ty, SPELLS.healing.radius)) return;
+      target.hp = Math.min(target.maxHp, target.hp + amount);
+      healed.push(id);
+    });
+    this.broadcast("fx", { kind: "heal", id: casterId, tx, ty, healed } satisfies CombatFx);
   }
 
   /** Charged spells fade away after spellChargeMs(Intelligence); the synced whole seconds only change once a second. */
@@ -470,7 +491,8 @@ export class GameRoom extends Room<GameState> {
       const next = world.step(p.x, p.y, dx, dy, dt, p.speed, bodies, p);
       p.x = next.x;
       p.y = next.y;
-      p.facing = Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? "right" : "left") : dy > 0 ? "down" : "up";
+      // down (also down+left/right) faces the front, left/right and up+left/right show the side, up the back
+      p.facing = dy > 0 ? "down" : dx ? (dx > 0 ? "right" : "left") : "up";
     });
   }
 }

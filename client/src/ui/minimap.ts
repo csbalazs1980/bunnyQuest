@@ -13,6 +13,10 @@ export class Minimap {
 
     const frame = document.createElement("div");
     frame.className = "minimap-frame";
+    // Fits in SIZE x SIZE keeping the map's shape (a 600 x 800 map gives a 150 x 200 minimap)
+    const longest = Math.max(map.width, map.height);
+    frame.style.width = `${Math.round((SIZE * map.width) / longest)}px`;
+    frame.style.height = `${Math.round((SIZE * map.height) / longest)}px`;
     frame.append(drawMap(map));
     this.dot = document.createElement("div");
     this.dot.className = "minimap-dot";

@@ -1,20 +1,43 @@
-// Spellbook window (hotkey P, starts minimized): the spells and how to draw them (their runes top to
-// bottom, as on the scroll), and every rune the bunny knows. Rune pictures come from shared/runes.ts.
+// Spellbook window (hotkey P, starts minimized): pick a spell from the drop-down to see how to cast it
+// (its runes top to bottom, as on the scroll). The runes you know are listed in the Help (Magic topic).
 import { UiWindow } from "./window";
 import { onLanguageChange, t, type TKey } from "../i18n";
-import { RUNE_SHAPES, type RuneId } from "../../../shared/runes";
-import { SPELL_IDS, SPELLS } from "../../../shared/magic";
+import { SPELL_IDS, SPELLS, type SpellId } from "../../../shared/magic";
+import { runePicture } from "./runePicture";
+
+const STORAGE_KEY = "bq-spellbook-spell";
 
 export class Spellbook {
   readonly window: UiWindow;
-  private body: HTMLDivElement;
+  private select: HTMLSelectElement;
+  private details: HTMLDivElement;
   private known: string[] = [];
+  private spell: SpellId = SPELL_IDS[0];
 
   constructor() {
     this.window = new UiWindow({ id: "spellbook", titleKey: "window.spellbook", hotkey: "P", defaultOpen: false });
-    this.body = document.createElement("div");
-    this.body.className = "spellbook";
-    this.window.body.append(this.body);
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && (SPELL_IDS as string[]).includes(saved)) this.spell = saved as SpellId;
+    } catch {
+      /* storage unavailable */
+    }
+    const body = el("div", "spellbook");
+    this.select = document.createElement("select");
+    this.select.className = "lang-select spellbook-select";
+    this.select.onchange = () => {
+      this.spell = this.select.value as SpellId;
+      try {
+        localStorage.setItem(STORAGE_KEY, this.spell);
+      } catch {
+        /* storage unavailable */
+      }
+      this.renderDetails();
+      this.select.blur(); // back to the game: letters typed next shouldn't pick options
+    };
+    this.details = el("div", "spellbook-details");
+    body.append(this.select, this.details);
+    this.window.body.append(body);
     onLanguageChange(() => this.render());
     this.render();
   }
@@ -26,73 +49,36 @@ export class Spellbook {
     this.render();
   }
 
+  private ready = (id: SpellId) => SPELLS[id].runes.every((r) => this.known.includes(r));
+
   private render() {
-    const hint = el("div", "spellbook-hint", t("spellbook.hint"));
-    const spells = SPELL_IDS.map((id) => {
-      const spell = SPELLS[id];
-      const ready = spell.runes.every((r) => this.known.includes(r));
-      const box = el("div", `spellbook-spell${ready ? "" : " missing"}`);
-      box.append(
-        el("div", "spellbook-name", `${spell.icon} ${t(`spell.${id}` as TKey)}`),
-        el("div", "spellbook-desc", t(`spell.${id}.desc` as TKey))
-      );
-      // The runes in order, top to bottom, like on the scroll
-      const column = el("div", "spellbook-column");
-      for (const rune of spell.runes) {
-        const row = el("div", "spellbook-step");
-        row.append(runePicture(rune, 40), el("span", "", `${t(`rune.${rune}` as TKey)} · ${t(`rune.${rune}.meaning` as TKey)}`));
-        column.append(row);
-      }
-      box.append(column);
-      if (!ready) box.append(el("div", "spellbook-desc", t("spellbook.missing")));
-      return box;
-    });
-    const runes = el("div", "spellbook-runes");
-    for (const rune of this.known) {
-      if (!(rune in RUNE_SHAPES)) continue;
-      const cell = el("div", "spellbook-rune");
-      cell.title = t(`rune.${rune}.meaning` as TKey);
-      cell.append(runePicture(rune as RuneId, 34), el("span", "", t(`rune.${rune}` as TKey)));
-      runes.append(cell);
+    this.select.replaceChildren(
+      ...SPELL_IDS.map((id) => new Option(`${SPELLS[id].icon} ${t(`spell.${id}` as TKey)}${this.ready(id) ? "" : " 🔒"}`, id))
+    );
+    this.select.value = this.spell;
+    this.select.title = t("spellbook.pick");
+    this.renderDetails();
+  }
+
+  /** The selected spell: what it does and its runes in order, top to bottom, like on the scroll. */
+  private renderDetails() {
+    const id = this.spell;
+    const spell = SPELLS[id];
+    const column = el("div", "spellbook-column");
+    for (const rune of spell.runes) {
+      const row = el("div", `spellbook-step${this.known.includes(rune) ? "" : " missing"}`);
+      row.append(runePicture(rune, 44), el("span", "", `${t(`rune.${rune}` as TKey)} · ${t(`rune.${rune}.meaning` as TKey)}`));
+      column.append(row);
     }
-    if (!this.known.length) runes.append(el("div", "spellbook-desc", t("spellbook.none")));
-    this.body.replaceChildren(
-      hint,
-      el("div", "spellbook-title", t("spellbook.spells")),
-      ...spells,
-      el("div", "spellbook-title", t("spellbook.runes")),
-      runes
+    this.details.replaceChildren(
+      el("div", "spellbook-name", `${spell.icon} ${t(`spell.${id}` as TKey)}`),
+      el("div", "spellbook-desc", t(`spell.${id}.desc` as TKey)),
+      el("div", "spellbook-title", t("spellbook.howTo")),
+      column,
+      ...(this.ready(id) ? [] : [el("div", "spellbook-desc spellbook-missing", t("spellbook.missing"))]),
+      el("div", "spellbook-hint", t("spellbook.hint"))
     );
   }
-}
-
-/** A rune drawn in red ink on a small square of parchment. */
-function runePicture(id: RuneId, size: number): HTMLCanvasElement {
-  const dpr = window.devicePixelRatio || 1;
-  const c = document.createElement("canvas");
-  c.className = "rune-picture";
-  c.width = c.height = Math.round(size * dpr);
-  c.style.width = c.style.height = `${size}px`;
-  const ctx = c.getContext("2d")!;
-  const strokes = RUNE_SHAPES[id];
-  const pts = strokes.flat();
-  const minX = Math.min(...pts.map((p) => p.x));
-  const maxX = Math.max(...pts.map((p) => p.x));
-  const minY = Math.min(...pts.map((p) => p.y));
-  const maxY = Math.max(...pts.map((p) => p.y));
-  const pad = c.width * 0.18;
-  const scale = (c.width - 2 * pad) / Math.max(maxX - minX, maxY - minY);
-  const ox = (c.width - (maxX - minX) * scale) / 2;
-  const oy = (c.height - (maxY - minY) * scale) / 2;
-  ctx.lineCap = ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(2, c.width * 0.07);
-  ctx.strokeStyle = "#b3121c";
-  for (const s of strokes) {
-    ctx.beginPath();
-    s.forEach((p, i) => ctx[i ? "lineTo" : "moveTo"](ox + (p.x - minX) * scale, oy + (p.y - minY) * scale));
-    ctx.stroke();
-  }
-  return c;
 }
 
 function el(tag: string, className: string, text = ""): HTMLDivElement {
