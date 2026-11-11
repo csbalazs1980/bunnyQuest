@@ -206,7 +206,7 @@ export const hu: Dict = {
 A [W] [A] [S] [D] gombokkal vagy a nyilakkal sétálhatsz. Az utakon gyorsabban haladsz. Az erdő, a dombok, a folyók, a mocsarak és a havas csúcsok lelassítanak, a tengert pedig senki sem tudja átúszni. Más nyuszikon és állatokon nem tudsz átsétálni: mindenki nagyjából fél mezőnyi távolságot tart.
 
 ## Ablakok
-- [M] térkép, [I] tárgyak, [O] öltözet, [K] tulajdonságok, [P] varázskönyv: nyomd meg a gombot, vagy kattints a címsorra az ablak összecsukásához, majd újra a kinyitásához.
+- [M] térkép, [I] tárgyak (az öltözeteddel), [K] tulajdonságok, [P] varázskönyv: nyomd meg a gombot, vagy kattints a címsorra az ablak összecsukásához, majd újra a kinyitásához.
 - Húzd a címsort az ablak áthelyezéséhez. Jobb klikk a címsoron: az ablak visszakerül a szokásos helyére.
 - [Esc] megnyitja a beállításokat, [H] ezt a súgót.
 

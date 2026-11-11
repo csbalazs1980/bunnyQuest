@@ -3,11 +3,15 @@ import { getStateCallbacks, Room } from "colyseus.js";
 import { World, type MapData } from "../../../shared/world";
 import mapJson from "../../../shared/map.json";
 import { tileVariants, variantAt } from "../tiles";
+import { createSmoothTerrain } from "../terrainShader";
 import { FxLayer } from "../fx";
 import { BubbleLayer } from "../bubbles";
 import { BloodLayer } from "../blood";
 import { MagicFx } from "../magicFx";
-import { animateBunny, BUNNY_FRAMES, BUNNY_SCALE, knockOutBunny, loadBunny, resetBunny, setupBunny, viewOf, viewOfFacing } from "../bunnySprite";
+import { animateBunny, BUNNY_FRAMES, BUNNY_SCALE, knockOutBunny, loadBunny, resetBunny, setupBunny } from "../bunnySprite";
+import { animateEnemy, ENEMY_FRAMES, ENEMY_SCALE, fallDead, loadEnemies, setupEnemies } from "../enemySprite";
+import { loadEffects, setupEffects } from "../effectSprites";
+import { face, facingNow, facingOf, facingOfAngle, facingOfServer, type Facing } from "../facing";
 import { NECROMANCY, SPELLS, tileCenter, type SpellId, type SpellSlot } from "../../../shared/magic";
 import { ARMY, baseKind, CORPSE_MS, enemyMaxHp, isZombie } from "../../../shared/enemies";
 import { itemView, type ItemView } from "../../../shared/items";
@@ -44,6 +48,7 @@ interface BunnyView {
   state: any; // the synced Player (hp, maxHp, ...)
   drip: Drip;
   casting: boolean; // the magic scroll is open: glowing eyes
+  lastFacing?: string; // the synced `facing` we last turned other players' bunnies to
 }
 
 /** Where a wounded character last dripped blood (see BloodLayer.drips). */
@@ -59,6 +64,10 @@ interface EnemyView {
   targetY: number;
   dying?: boolean; // killed: plays its little death animation instead of vanishing
   state: any; // the synced Enemy (kind, hp, ...)
+  // Which way it walks (the server sends only positions): recent moves, smoothed, and when it last moved
+  vx: number;
+  vy: number;
+  movedAt: number;
   label?: Phaser.GameObjects.Text; // King Arthur's name
   drip: Drip;
 }
@@ -104,15 +113,17 @@ export class GameScene extends Phaser.Scene {
   /** Loads the tile pictures: one per terrain, or several numbered variants (see src/tiles.ts). */
   preload() {
     loadBunny(this); // src/assets/characters/bunny.png (see src/bunnySprite.ts)
+    loadEnemies(this); // rat, knight, king and their zombies (see src/enemySprite.ts)
+    loadEffects(this); // combat, magic and blood effects (see src/effectSprites.ts)
     for (const [key, t] of Object.entries(world.map.terrain)) {
       tileVariants(t.name).forEach((url, i) => this.load.image(`terrain-${key}-${i}`, url));
     }
   }
 
   create() {
-    setupBunny(this); // hopping animation + glowing eyes overlay
-    makeRatTexture(this);
-    makeCrusaderTextures(this);
+    setupBunny(this); // hopping animations + glowing eyes overlay
+    setupEnemies(this); // walking animations
+    setupEffects(this); // the fireball's flicker
     this.banner.id = "life-banner";
     this.banner.hidden = true;
     document.body.append(this.banner);
@@ -188,7 +199,6 @@ export class GameScene extends Phaser.Scene {
           sprite.setPosition(player.x, player.y);
           view.snap = false;
         }
-        if (sessionId !== this.room.sessionId && view.life.state !== "out") sprite.setFlipX(player.facing === "left");
         this.setLife(view, lifeOf(player));
         if (!!player.casting !== view.casting) {
           view.casting = !!player.casting;
@@ -205,12 +215,16 @@ export class GameScene extends Phaser.Scene {
     $(this.room.state).enemies.onAdd((enemy: any, id: string) => {
       const base = baseKind(enemy.kind);
       const tall = base === "king" || base === "knight";
-      // Textures: "rat", "knight", "king" and their zombies "zrat", "zknight", "zking" (drawn below)
-      const sprite = this.add.sprite(enemy.x, enemy.y, this.textures.exists(enemy.kind) ? enemy.kind : "rat").setFlipX(enemy.faceLeft);
+      // Sprite sheets: "rat", "knight", "king" and their zombies "zrat", "zknight", "zking" (src/enemySprite.ts)
+      const kind = this.textures.exists(enemy.kind) ? enemy.kind : "rat";
+      const sprite = this.add.sprite(enemy.x, enemy.y, kind, ENEMY_FRAMES.front.idle).setScale(ENEMY_SCALE);
+      face(sprite, "front");
       // Crusaders are 1.5-2 tiles tall but stand on their feet: their position (and collision) is the
       // bottom quarter of the sprite, the rest of the body rises above it
       if (tall) sprite.setOrigin(0.5, 7 / 8);
-      const view: EnemyView = { sprite, targetX: enemy.x, targetY: enemy.y, state: enemy, drip: { x: enemy.x, y: enemy.y } };
+      const view: EnemyView = {
+        sprite, targetX: enemy.x, targetY: enemy.y, state: enemy, drip: { x: enemy.x, y: enemy.y }, vx: 0, vy: 0, movedAt: -Infinity,
+      };
       if (enemy.kind === "king") {
         view.label = this.add
           .text(enemy.x, enemy.y, t("enemy.king"), { fontFamily: "monospace", fontSize: "13px", color: "#f2d36b", stroke: "#000000", strokeThickness: 3 })
@@ -219,13 +233,22 @@ export class GameScene extends Phaser.Scene {
       this.enemies.set(id, view);
       if (isZombie(enemy.kind)) {
         // Rising from the ground: grows up out of it, faded in
-        sprite.setScale(1, 0.1).setAlpha(0.3);
-        this.tweens.add({ targets: sprite, scaleY: 1, alpha: 1, duration: 700, ease: "Back.easeOut" });
+        sprite.setScale(ENEMY_SCALE, ENEMY_SCALE * 0.1).setAlpha(0.3);
+        this.tweens.add({ targets: sprite, scaleY: ENEMY_SCALE, alpha: 1, duration: 700, ease: "Back.easeOut" });
       }
       $(enemy).onChange(() => {
+        // Turn the way it walks (the same rule as bunnies, src/facing.ts); a little smoothing, because
+        // positions are whole pixels and slow walkers move one or two pixels at a time
+        const dx = enemy.x - view.targetX;
+        const dy = enemy.y - view.targetY;
         view.targetX = enemy.x;
         view.targetY = enemy.y;
-        if (!view.dying) sprite.setFlipX(enemy.faceLeft);
+        if ((!dx && !dy) || view.dying) return;
+        view.vx = view.vx * 0.5 + dx;
+        view.vy = view.vy * 0.5 + dy;
+        view.movedAt = this.time.now;
+        const f = facingOf(view.vx, view.vy);
+        if (f) face(sprite, f);
       });
     });
     $(this.room.state).enemies.onRemove((_enemy: any, id: string) => {
@@ -239,7 +262,7 @@ export class GameScene extends Phaser.Scene {
       // then slowly fades. Only a picture: the server has already removed it, so nobody bumps into it.
       const body = view.sprite;
       this.tweens.killTweensOf(body);
-      body.setAlpha(1).setScale(1).setDepth(-0.3); // on the ground: above scorch marks, under everyone still standing
+      body.setAlpha(1).setScale(ENEMY_SCALE).setDepth(-0.3); // on the ground: above scorch marks, under everyone still standing
       this.corpses.set(id, body);
       this.tweens.add({
         targets: body, alpha: 0, delay: CORPSE_MS, duration: CORPSE_FADE_MS,
@@ -280,7 +303,7 @@ export class GameScene extends Phaser.Scene {
       const dist = Math.min(ATTACK_RANGE, Math.hypot(dx, dy)); // reach: one tile
 
       if (right) return this.useHand2(me, angle, dist, dx);
-      if (dx) me.sprite.setFlipX(dx < 0); // face the action
+      face(me.sprite, facingOfAngle(angle)); // face the action
       if ((pointer.event as MouseEvent).shiftKey) this.block(me, angle);
       else this.attack(me, angle, dist);
     });
@@ -299,7 +322,7 @@ export class GameScene extends Phaser.Scene {
         this.corpses.delete(m.corpse);
         const caster = this.spriteOf(m.id);
         if (body) {
-          if (caster && body.x !== caster.x) caster.setFlipX(body.x < caster.x); // the caster faces the body
+          if (caster) this.faceToward(caster, body); // the caster faces the body
           this.magic.raise(body.x, body.y);
           this.tweens.killTweensOf(body);
           body.destroy();
@@ -313,19 +336,19 @@ export class GameScene extends Phaser.Scene {
         case "attack":
           if (mine) this.fx.upgradeAttack(m.seq, m); // we already show it: just add the luck
           else {
-            sprite.setFlipX(Math.cos(m.angle) < 0);
+            face(sprite, facingOfAngle(m.angle));
             this.fx.attack(sprite, m.angle, m.dist, m.word, m);
           }
           break;
         case "defend":
-          sprite.setFlipX(Math.cos(m.angle) < 0);
+          face(sprite, facingOfAngle(m.angle));
           this.fx.defend(sprite, m.angle);
           break;
         case "shout": // crusaders: "CHARGE!", "RETREAT!", ... in each player's own language
           this.bubbles.say(sprite, t(`shout.${m.line}` as TKey));
           break;
         case "bite":
-          sprite.setFlipX(Math.cos(m.angle) < 0);
+          face(sprite, facingOfAngle(m.angle));
           this.fx.bite(sprite, m.angle);
           break;
         case "blocked": {
@@ -346,9 +369,8 @@ export class GameScene extends Phaser.Scene {
             enemy.dying = true;
             this.blood.pool(sprite.x, sprite.y);
             this.tweens.killTweensOf(sprite);
-            sprite.setAlpha(1);
-            if (sprite.originY > 0.5) sprite.setAngle(sprite.flipX ? -90 : 90); // a crusader falls over (90° keeps the pixels crisp)
-            else sprite.setFlipY(true); // a rat: belly up
+            sprite.setAlpha(1).setScale(ENEMY_SCALE);
+            fallDead(sprite, sprite.originY > 0.5, facingNow(sprite)); // a crusader falls over, a rat lies belly up
           }
           break;
         }
@@ -356,13 +378,13 @@ export class GameScene extends Phaser.Scene {
           // Start from where we see the caster (the server's position may be a few pixels behind)
           const from = this.bunnies.get(m.id)?.sprite ?? { x: m.x, y: m.y };
           const to = tileCenter(m.tx, m.ty);
-          if (to.x !== from.x) sprite.setFlipX(to.x < from.x); // face the throw
+          this.faceToward(sprite, to); // face the throw
           this.magic.fireball(from.x, from.y, m.tx, m.ty, m.ms);
           break;
         }
         case "heal": {
           const to = tileCenter(m.tx, m.ty);
-          if (to.x !== sprite.x) sprite.setFlipX(to.x < sprite.x); // the caster faces the tile
+          this.faceToward(sprite, to); // the caster faces the tile
           const healed = m.healed.map((id) => this.bunnies.get(id)?.sprite).filter((s): s is Phaser.GameObjects.Sprite => !!s);
           this.magic.heal(m.tx, m.ty, healed);
           break;
@@ -418,7 +440,7 @@ export class GameScene extends Phaser.Scene {
     const action = handAction(item);
     if (action === "eat") return this.onUseItem?.(item);
     if (action === "none") return this.fx.say(me.sprite, t("fx.nothingHappens"));
-    if (dx) me.sprite.setFlipX(dx < 0); // face the action
+    face(me.sprite, facingOfAngle(angle)); // face the action
     if (action === "attack") this.attack(me, angle, dist);
     else this.block(me, angle);
   }
@@ -545,6 +567,12 @@ export class GameScene extends Phaser.Scene {
     if (this.blood.drips(hpShare)) this.blood.drip(sprite.x, sprite.y);
   }
 
+  /** Turns a character toward a point. */
+  private faceToward(sprite: Phaser.GameObjects.Sprite, to: { x: number; y: number }) {
+    const f: Facing | undefined = facingOf(to.x - sprite.x, to.y - sprite.y);
+    if (f) face(sprite, f);
+  }
+
   /** The sprite of a bunny (session id) or an enemy (e.g. "rat12"). */
   private spriteOf(id: string): Phaser.GameObjects.Sprite | undefined {
     return this.bunnies.get(id)?.sprite ?? this.enemies.get(id)?.sprite;
@@ -604,9 +632,8 @@ export class GameScene extends Phaser.Scene {
         const mySpeed: number | undefined = (this.room.state as any).players?.get(this.room.sessionId)?.speed;
         const next = world.step(s.x, s.y, dx, dy, dt, mySpeed, this.bodiesAround(s)); // same rules as the server
         s.setPosition(next.x, next.y);
-        if (dx) s.setFlipX(dx < 0);
-        // hop while walking: front when going down (also diagonally), side for left/right and up+left/right, back for up
-        if (view.life.state !== "out") animateBunny(s, !!(dx || dy), dx || dy ? viewOf(dx, dy) : undefined);
+        // hop while walking: front when going down (also diagonally), left/right side (also up+left/right), back for up
+        if (view.life.state !== "out") animateBunny(s, !!(dx || dy), facingOf(dx, dy));
 
         // Gently correct toward the server's position (snap if we are way off)
         const err = Phaser.Math.Distance.Between(s.x, s.y, view.targetX, view.targetY);
@@ -617,8 +644,10 @@ export class GameScene extends Phaser.Scene {
         // Other players: smooth interpolation toward their latest server position
         s.x = Phaser.Math.Linear(s.x, view.targetX, 0.25);
         s.y = Phaser.Math.Linear(s.y, view.targetY, 0.25);
-        // the server says whether they walk, and which way they face
-        if (view.life.state !== "out") animateBunny(s, !!view.state.moving, viewOfFacing(view.state.facing));
+        // the server says whether they walk, and which way they face (turning toward an attack lasts until they move)
+        const turned = view.state.moving || view.state.facing !== view.lastFacing;
+        view.lastFacing = view.state.facing;
+        if (view.life.state !== "out") animateBunny(s, !!view.state.moving, turned ? facingOfServer(view.state.facing) : undefined);
       }
       s.setDepth(s.y); // simple y-sorting so bunnies overlap correctly
       if (view.life.state !== "out" && view.state.maxHp > 0) this.bleedTrail(s, view.drip, view.state.hp / view.state.maxHp);
@@ -633,6 +662,7 @@ export class GameScene extends Phaser.Scene {
       if (view.dying) return;
       s.x = Phaser.Math.Linear(s.x, view.targetX, 0.25);
       s.y = Phaser.Math.Linear(s.y, view.targetY, 0.25);
+      animateEnemy(s, s.texture.key, this.time.now - view.movedAt < 250); // walks while the server moves it
       s.setDepth(s.y);
       view.label?.setPosition(s.x, s.y - s.displayHeight * s.originY - 2).setDepth(100000);
       this.bleedTrail(s, view.drip, view.state.hp / enemyMaxHp(view.state.kind));
@@ -705,7 +735,11 @@ export class GameScene extends Phaser.Scene {
     view.countdown?.setText(String(life.seconds));
   }
 
-  /** Builds the terrain layer (from the tile pictures) and a transparent road layer on top of it. */
+  /**
+   * Builds the terrain (from the tile pictures) and a transparent road layer on top of it.
+   * With WebGL the terrain is drawn by a shader that blends neighbouring terrains along wavy edges
+   * (src/terrainShader.ts); otherwise it is a plain tilemap.
+   */
   private createMap() {
     const { tileSize: ts, terrain, rows, roads } = world.map;
 
@@ -745,8 +779,20 @@ export class GameScene extends Phaser.Scene {
         return f.index + variantAt(x, y, world.map.seed, f.count);
       })
     );
-    const map = this.make.tilemap({ data, tileWidth: ts, tileHeight: ts });
-    map.createLayer(0, map.addTilesetImage("terrain")!, 0, 0)!.setDepth(-2);
+    const smooth = createSmoothTerrain(this, {
+      tileSize: ts,
+      width: world.map.width,
+      height: world.map.height,
+      atlasKey: "terrain",
+      atlasCount: total,
+      cell: (x, y) => ({ picture: data[y][x], terrain: Math.max(0, keys.indexOf(rows[y][x])) }),
+      terrainName: (i) => terrain[keys[i]].name,
+    });
+    if (smooth) smooth.setDepth(-2);
+    else {
+      const map = this.make.tilemap({ data, tileWidth: ts, tileHeight: ts });
+      map.createLayer(0, map.addTilesetImage("terrain")!, 0, 0)!.setDepth(-2);
+    }
 
     // --- roads: 16 transparent tiles, one per combination of arms (N=1 E=2 S=4 W=8) ---
     makeRoadTexture(this, ts, world.map.road.color);
@@ -814,138 +860,6 @@ function handAction(item: ItemView): "eat" | "attack" | "block" | "none" {
   if (item.itemType === "weapon") return "attack";
   if (item.defense > 0) return "block";
   return "none";
-}
-
-/**
- * A little grey rat (side view, facing right), drawn in code like the bunny, 3x scale; and its zombie
- * ("zrat"): rotten grey-green fur with dark patches, bare ribs and a glowing green eye.
- */
-function makeRatTexture(scene: Phaser.Scene) {
-  const S = 3;
-  const rat = [
-    "...........PP...",
-    ".....GGGGGGGPG..",
-    "...GGGGGGGGGGKG.",
-    "P.GGGGGGGGGGGGGP",
-    ".PGGGGGGGGGGGG..",
-    "..PGGGGGGGGGG...",
-    "....P.P...P.P...",
-  ];
-  const zrat = [
-    "...........PP...",
-    ".....GGGDGGGPG..",
-    "...GGDGGGGGGGEG.",
-    "P.GGBGBGBGGGGGGP",
-    ".PGGGGGGGGDGGG..",
-    "..PGGDGGGGGGG...",
-    "....P.P...B.P...",
-  ];
-  drawPixels(scene, "rat", rat, 16, S, { G: 0x8d8790, P: 0xe8a0a8, K: 0x1a1a1a });
-  drawPixels(scene, "zrat", zrat, 16, S, { G: 0x9aa684, D: 0x5d6b4c, B: 0xe6e0c4, P: 0xa88a7e, E: 0xc8ff4a });
-}
-
-/** Draws pixel art (one character per pixel, `palette` colors; others are transparent) into texture `key`. */
-function drawPixels(scene: Phaser.Scene, key: string, art: string[], width: number, S: number, palette: Record<string, number>) {
-  const g = scene.make.graphics({}, false);
-  art.forEach((row, y) =>
-    [...row].forEach((c, x) => {
-      if (palette[c] === undefined) return;
-      g.fillStyle(palette[c]);
-      g.fillRect(x * S, y * S, S, S);
-    })
-  );
-  g.generateTexture(key, width * S, art.length * S);
-  g.destroy();
-}
-
-/**
- * A crusader's zombie: rust and moss on the armor, holes in the tabard and a ragged hem, a rotten green
- * hand where the gauntlet broke, a bent sword, and (with the palette) a visor slit glowing green.
- * `top`: rows above the helmet (the king's crown).
- */
-function zombify(art: string[], top: number): string[] {
-  const a = art.map((row) => [...row]);
-  const put = (y: number, x: number, c: string) => {
-    const row = a[y + top];
-    if (row && x >= 0 && x < row.length) row[x] = c;
-  };
-  const stains: [number, number, string][] = [
-    [1, 4, "O"], [2, 9, "O"], [0, 6, "G"], [4, 8, "O"], [6, 4, "G"], [7, 5, "O"], [9, 1, "O"],
-    [12, 12, "G"], [15, 2, "O"], [24, 3, "O"], [27, 9, "G"], [29, 10, "O"],
-  ];
-  stains.forEach(([y, x, c]) => put(y, x, c));
-  for (const [y, x] of [[10, 8], [14, 5], [19, 9], [21, 4], [21, 10], [20, 3], [20, 10]]) put(y, x, "."); // torn tabard
-  put(13, 13, "F"); // the rotten hand
-  put(21, 13, "."); put(22, 12, "S"); put(23, 12, "S"); put(24, 12, "."); // the bent sword
-  return a.map((row) => row.join(""));
-}
-
-/**
- * Crusaders, drawn in code like the bunny (3x scale): a knight in a great helm and a white tabard with
- * a red cross (14 x 34 pixels, about 1.6 tiles tall), and the king: crown, blue and gold tabard and a
- * purple cape (about 1.8 tiles tall). Also their zombies ("zknight", "zking").
- */
-function makeCrusaderTextures(scene: Phaser.Scene) {
-  const S = 3;
-  const knight = [
-    "....HHHHHH....",
-    "...HHHHHHHH...",
-    "...HHHHHHHH...",
-    "...HDDDDDDH...",
-    "...HHHHHHHH...",
-    "...HHHDHHHH...",
-    "...HHHHHHHH...",
-    "....MMMMMM....",
-    "..MMWWWWWWMM..",
-    ".MMWWWRRWWWMM.",
-    ".MMWWWRRWWWMM.",
-    ".MMWRRRRRRWMM.",
-    ".MMWRRRRRRWMM.",
-    ".MMWWWRRWWWMMK",
-    ".MMWWWRRWWWMMS",
-    ".MMWWWRRWWWMMS",
-    ".MMWWWRRWWWMMS",
-    ".MBBBBBBBBBBMS",
-    ".M.WWWRRWWW.MS",
-    ".M.WWWWWWWW.MS",
-    "...WWWWWWWW..S",
-    "...WWWWWWWW..S",
-    "...WWW..WWW..S",
-    "...MMM..MMM..S",
-    "...MMM..MMM..S",
-    "...MMM..MMM...",
-    "...MMM..MMM...",
-    "...MMM..MMM...",
-    "...MMM..MMM...",
-    "...MMM..MMM...",
-    "...MMM..MMM...",
-    "...BBB..BBB...",
-    "..BBBB..BBBB..",
-    "..BBBB..BBBB..",
-  ];
-  // The king: same armor, blue tabard with a gold cross, a purple cape at his sides and a crown on top
-  const king = [
-    "...Y.Y..Y.Y...",
-    "...YYYYYYYY...",
-    ...knight.map((row, y) =>
-      [...row]
-        .map((c, x) => (c === "W" ? "U" : c === "R" ? "Y" : c === "." && y >= 8 && y <= 30 && (x === 0 || x === 13) ? "P" : c))
-        .join("")
-    ),
-  ];
-  const palette: Record<string, number> = {
-    H: 0xa8adb5, D: 0x2b2b2b, M: 0x7d838c, W: 0xeeeeee, R: 0xc8202a, B: 0x5a3a22, K: 0x3a2a1a, S: 0xd8dde3,
-    U: 0x2d4fa3, Y: 0xf2c230, P: 0x6b3fa0,
-  };
-  drawPixels(scene, "knight", knight, 14, S, palette);
-  drawPixels(scene, "king", king, 14, S, palette);
-  // Their zombies: rusty, mossy, rotten (see zombify)
-  const zombiePalette: Record<string, number> = {
-    H: 0x8e8a78, D: 0x9bff4a, M: 0x6a6a5c, W: 0xb9b896, R: 0x6e2a22, B: 0x3e2a1a, K: 0x2a2016, S: 0x9a8c78,
-    U: 0x3b4d63, Y: 0xa8913e, P: 0x4a3a55, O: 0x8a4f28, G: 0x5f8a3a, F: 0x7fae4c,
-  };
-  drawPixels(scene, "zknight", zombify(knight, 0), 14, S, zombiePalette);
-  drawPixels(scene, "zking", zombify(king, 2), 14, S, zombiePalette);
 }
 
 /** A player's life state from the synced fields (see the server's Player schema). */

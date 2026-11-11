@@ -217,7 +217,7 @@ export const ro: Dict = {
 Mergi cu [W] [A] [S] [D] sau cu săgețile. Drumurile te fac mai rapid. Pădurile, dealurile, râurile, mlaștinile și piscurile înzăpezite te încetinesc, iar marea nu o poate traversa nimeni înot. Nu poți trece prin alți iepurași sau animale: fiecare păstrează o distanță de aproximativ o jumătate de pătrățică.
 
 ## Ferestre
-- [M] hartă, [I] inventar, [O] echipament, [K] atribute, [P] carte de vrăji: apasă tasta sau dă clic pe bara de titlu ca să strângi fereastra și încă o dată ca să o deschizi.
+- [M] hartă, [I] inventar (cu echipamentul), [K] atribute, [P] carte de vrăji: apasă tasta sau dă clic pe bara de titlu ca să strângi fereastra și încă o dată ca să o deschizi.
 - Trage de bara de titlu ca să muți fereastra. Clic dreapta pe bara de titlu o readuce la locul ei obișnuit.
 - [Esc] deschide opțiunile, [H] deschide acest ajutor.
 

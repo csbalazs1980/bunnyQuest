@@ -1,4 +1,4 @@
-// The HUD: inventory window (I), outfit window (O) and the hotbar at the bottom, all HTML on top
+// The HUD: inventory window (I, with the outfit on its right half) and the hotbar at the bottom, all HTML on top
 // of the game canvas. Equipment rules come from shared/equipment.ts; the server has the final say.
 import { ITEM_TYPES, type ItemView } from "../../../shared/items";
 import { onLanguageChange, t, tItem, tSlot, tType, type TKey } from "../i18n";
@@ -142,11 +142,17 @@ export class Hud {
     });
 
     this.list = el("div", { className: "inv-list" });
-    body.append(this.filterInput, types, head, this.list);
+    // Two columns side by side: the item list on the left, the outfit (mannequin) on the right
+    const itemsColumn = el("div", { className: "inv-items" });
+    itemsColumn.append(this.filterInput, types, head, this.list);
+    const outfitColumn = el("div", { className: "inv-outfit" });
+    const split = el("div", { className: "inv-split" });
+    split.append(itemsColumn, outfitColumn);
+    body.append(split);
 
-    // ---------- outfit window (created after the inventory, so it docks below it) ----------
-    this.outfit = new OutfitView((slotId) => this.slotHandlers(slotId));
-    this.statsView = new StatsView(); // docks below the outfit, starts minimized
+    // ---------- outfit: right half of the inventory window ----------
+    this.outfit = new OutfitView(outfitColumn, (slotId) => this.slotHandlers(slotId));
+    this.statsView = new StatsView(); // docks below the inventory, starts minimized
 
     // ---------- hotbar: hands (1, 2) + belt pockets (3+) ----------
     this.hotbar = el("div", { id: "hotbar" });

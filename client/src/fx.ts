@@ -1,5 +1,5 @@
 // Comic combat effects drawn in the game world: attack bursts ("BAM!") and block shields.
-// Effects stay attached to their bunny while it moves.
+// Effects stay attached to their bunny while it moves. Pictures: assets/effects/combat (src/effectSprites.ts).
 import Phaser from "phaser";
 import {
   ATTACK_FLASH_MS,
@@ -10,8 +10,10 @@ import {
   type BlockLuck,
 } from "../../shared/combat";
 import { t, tList } from "./i18n";
+import { effectImage } from "./effectSprites";
 
 interface LiveFx {
+  kind: "burst" | "shield" | "bite";
   obj: Phaser.GameObjects.Container | Phaser.GameObjects.Text;
   target: Phaser.GameObjects.Sprite;
   angle: number;
@@ -35,16 +37,7 @@ export class FxLayer {
     luck: AttackLuck = { double: false, bonus: false },
     seq?: number
   ) {
-    const burst = this.scene.add.graphics();
-    const spikes = 12;
-    const points: Phaser.Math.Vector2[] = [];
-    for (let i = 0; i < spikes * 2; i++) {
-      const r = i % 2 ? 15 : 27;
-      const a = (i / (spikes * 2)) * Math.PI * 2;
-      points.push(new Phaser.Math.Vector2(Math.cos(a) * r * 1.25, Math.sin(a) * r));
-    }
-    burst.fillStyle(0xffe14d).fillPoints(points, true);
-    burst.lineStyle(3, 0xd6262b).strokePoints(points, true);
+    const burst = effectImage(this.scene, "combat-burst", 0, 0, 0);
 
     const text = this.scene.add
       .text(0, 0, tList("fx.words")[word] ?? tList("fx.words")[0], {
@@ -62,7 +55,7 @@ export class FxLayer {
       .setDepth(FX_DEPTH)
       .setAngle(Phaser.Math.Between(-15, 15))
       .setScale(0.4);
-    this.track({ obj: fx, target, angle, dist: Math.max(30, dist), seq }, ATTACK_FLASH_MS);
+    this.track({ kind: "burst", obj: fx, target, angle, dist: Math.max(30, dist), seq }, ATTACK_FLASH_MS);
     // Pop in (bigger for a lucky +2 hit), then fade out at the end
     this.scene.tweens.add({ targets: fx, scale: burstScale(luck), duration: 110, ease: "Back.easeOut" });
     this.scene.tweens.add({ targets: fx, alpha: 0, delay: ATTACK_FLASH_MS - 150, duration: 150 });
@@ -72,7 +65,7 @@ export class FxLayer {
   /** The server rolled luck for one of our attacks: grow the burst we already show and/or add "2x". */
   upgradeAttack(seq: number, luck: AttackLuck) {
     const f = this.live.find((x) => x.seq === seq);
-    if (!f || !(f.obj instanceof Phaser.GameObjects.Container)) return;
+    if (!f || f.kind !== "burst" || !(f.obj instanceof Phaser.GameObjects.Container)) return;
     if (luck.bonus) this.scene.tweens.add({ targets: f.obj, scale: burstScale(luck), duration: 120, ease: "Back.easeOut" });
     if (luck.double) this.addDoubleBadge(f.obj);
   }
@@ -98,10 +91,11 @@ export class FxLayer {
   defend(target: Phaser.GameObjects.Sprite, angle: number) {
     // Replace this bunny's previous shield if it's still up (a new block refreshes it)
     this.live
-      .filter((f) => f.target === target && f.obj instanceof Phaser.GameObjects.Text)
+      .filter((f) => f.target === target && f.kind === "shield")
       .forEach((f) => this.remove(f));
-    const shield = this.scene.add.text(0, 0, "🛡️", { fontSize: "24px" }).setOrigin(0.5).setDepth(FX_DEPTH);
-    this.track({ obj: shield, target, angle, dist: 30 }, DEFEND_MS);
+    // (in a container, so it can pop by scaling without minding the picture's own scale)
+    const shield = this.scene.add.container(0, 0, [effectImage(this.scene, "combat-shield", 0, 0, 0)]).setDepth(FX_DEPTH);
+    this.track({ kind: "shield", obj: shield, target, angle, dist: 30 }, DEFEND_MS);
     this.scene.tweens.add({ targets: shield, alpha: 0.25, delay: DEFEND_MS - 200, duration: 200 });
   }
 
@@ -110,7 +104,7 @@ export class FxLayer {
    * Lucky blocks make it bigger and the sizes stack: full +25%, perfect +50%, both +75%.
    */
   blocked(target: Phaser.GameObjects.Sprite, towardAttacker: number, luck: BlockLuck) {
-    let shield = this.live.find((f) => f.target === target && f.obj instanceof Phaser.GameObjects.Text);
+    let shield = this.live.find((f) => f.target === target && f.kind === "shield");
     if (!shield) {
       this.defend(target, towardAttacker);
       shield = this.live[this.live.length - 1];
@@ -139,7 +133,7 @@ export class FxLayer {
       .setDepth(FX_DEPTH + 1)
       .setAngle(Phaser.Math.Between(-12, 12))
       .setScale(0.5);
-    this.track({ obj: text, target: rat, angle, dist: 20 }, 400);
+    this.track({ kind: "bite", obj: text, target: rat, angle, dist: 20 }, 400);
     this.scene.tweens.add({ targets: text, scale: 1, duration: 100, ease: "Back.easeOut" });
     this.scene.tweens.add({ targets: text, alpha: 0, delay: 280, duration: 120 });
   }

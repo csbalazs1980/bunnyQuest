@@ -7,7 +7,10 @@
 //   high     a big spray, large stains that stay for half a minute, badly hurt characters drip as
 //            they walk (already at half health), and a pool where someone is knocked out
 //   maximum  comically over the top: every hit sprays blood 4-5 tiles around, with huge stains
+//
+// Pictures: assets/effects/blood (src/effectSprites.ts): drop.png, splat.png, stain.png.
 import Phaser from "phaser";
+import { dot, effectImage, randomFrame } from "./effectSprites";
 
 export const BLOOD_LEVELS = ["off", "low", "medium", "high", "max"] as const;
 export type BloodLevel = (typeof BLOOD_LEVELS)[number];
@@ -65,15 +68,13 @@ const LOOK: Record<BloodLevel, {
   max: { drops: 90, spread: 300, stain: 9, stainMs: 45000, dripBelow: 0.75, pool: true, mark: 6, cone: 1.6, flightMs: 650, bigDrops: 0.6 },
 };
 
-const COLORS = [0xb3201f, 0x9b1b1b, 0xc8302b, 0x7d1414];
-const STAIN_COLOR = 0x6e1010;
-const PX = 3; // one "pixel" of the pixel art
+const PX = 3; // one "pixel" of the pixel art (the pictures are drawn this many times bigger)
 const MAX_STAINS = 400; // oldest stains disappear first
 const GROUND_DEPTH = -0.5; // above the terrain and roads, below every character
 const DROP_DEPTH = 200001; // flying droplets: above characters
 
 export class BloodLayer {
-  private stains: Phaser.GameObjects.Graphics[] = [];
+  private stains: Phaser.GameObjects.Image[] = [];
 
   constructor(private scene: Phaser.Scene) {
     // Turning blood off (or down to low) clears what is already on the ground
@@ -90,15 +91,12 @@ export class BloodLayer {
     // The splat mark: a burst of pixels on the side where the hit landed, gone in a moment
     const hx = target.x + Math.cos(fromAngle) * 8;
     const hy = target.y - 4 + Math.sin(fromAngle) * 6;
-    const mark = this.scene.add.graphics({ x: Math.round(hx), y: Math.round(hy) }).setDepth(DROP_DEPTH);
-    const r = 4 * look.mark;
-    for (let i = 0; i < 6 + look.mark * 4; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const d = Math.random() * r;
-      mark.fillStyle(Phaser.Utils.Array.GetRandom(COLORS)).fillRect(Math.round((Math.cos(a) * d) / PX) * PX, Math.round((Math.sin(a) * d) / PX) * PX, PX, PX);
-    }
-    mark.setScale(0.5);
-    this.scene.tweens.add({ targets: mark, scale: 1, duration: 90, ease: "Back.easeOut" });
+    const first = look.mark < 2 ? 0 : look.mark < 4 ? 2 : 4; // splat.png: small, medium or big (two of each)
+    const mark = effectImage(this.scene, "blood-splat", Math.round(hx), Math.round(hy), randomFrame(this.scene, "blood-splat", first, first + 1))
+      .setDepth(DROP_DEPTH);
+    const markScale = mark.scaleX;
+    mark.setScale(markScale * 0.5);
+    this.scene.tweens.add({ targets: mark, scale: markScale, duration: 90, ease: "Back.easeOut" });
     this.scene.tweens.add({ targets: mark, alpha: 0, delay: 250 + 100 * look.mark, duration: 250, onComplete: () => mark.destroy() });
 
     // Droplets fly off the far side of the body, away from the hit
@@ -108,7 +106,7 @@ export class BloodLayer {
       const a = away + Phaser.Math.FloatBetween(-look.cone, look.cone);
       const d = look.spread * Phaser.Math.FloatBetween(0.15, 1);
       const size = PX * (Math.random() < look.bigDrops ? Phaser.Math.Between(2, look.drops > 50 ? 4 : 2) : 1);
-      const drop = this.scene.add.rectangle(sx, sy, size, size, Phaser.Utils.Array.GetRandom(COLORS)).setDepth(DROP_DEPTH);
+      const drop = dot(this.scene, "blood-drop", sx, sy, size).setDepth(DROP_DEPTH);
       const tx = sx + Math.cos(a) * d;
       const ty = sy + Math.sin(a) * d * 0.6;
       // An arc: out, then down to the ground (far droplets fly a bit longer)
@@ -147,23 +145,21 @@ export class BloodLayer {
     if (size) this.stain(x + Phaser.Math.Between(-6, 6), y + 14, size);
   }
 
-  /** A blotch of pixel squares on the ground, fading away after a while. `growMs`: spreads out slowly. */
+  /**
+   * A stain on the ground (stain.png: tiny, small, medium, large or huge by `size`, a random one of three,
+   * maybe mirrored), fading away after a while. `growMs`: spreads out slowly.
+   */
   private stain(x: number, y: number, size: number, growMs = 0) {
     const look = LOOK[level];
-    const g = this.scene.add.graphics({ x: Math.round(x), y: Math.round(y) }).setDepth(GROUND_DEPTH);
-    const blobs = Math.max(1, Math.round(4 * size));
-    const radius = 4 * size;
-    for (let i = 0; i < blobs; i++) {
-      const bx = Math.round(Phaser.Math.FloatBetween(-radius, radius) / PX) * PX;
-      const by = Math.round(Phaser.Math.FloatBetween(-radius, radius) * 0.5 / PX) * PX; // flat: it's on the ground
-      // small stains: little dashes; big ones (maximum): chunky blobs instead of long stripes
-      const w = PX * Phaser.Math.Between(1, Math.max(1, Math.round(Math.min(size, 3) * 1.5)));
-      const h = w > PX ? PX * Phaser.Math.Between(1, Math.max(2, Math.round(w / PX / 2))) : PX;
-      g.fillStyle(i % 3 ? STAIN_COLOR : COLORS[1], 0.75).fillRect(bx, by, w, h);
-    }
+    const kind = size <= 0.6 ? 0 : size <= 1.5 ? 1 : size <= 3.5 ? 2 : size <= 9 ? 3 : 4;
+    const g = effectImage(this.scene, "blood-stain", Math.round(x), Math.round(y), randomFrame(this.scene, "blood-stain", kind * 3, kind * 3 + 2))
+      .setFlipX(Math.random() < 0.5)
+      .setDepth(GROUND_DEPTH);
+    if (size > 14) g.setScale(g.scaleX * (size / 14)); // even bigger than the huge ones (pools on maximum)
     if (growMs) {
-      g.setScale(0.3);
-      this.scene.tweens.add({ targets: g, scale: 1, duration: growMs, ease: "Quad.easeOut" });
+      const full = g.scaleX;
+      g.setScale(full * 0.3);
+      this.scene.tweens.add({ targets: g, scale: full, duration: growMs, ease: "Quad.easeOut" });
     }
     const fade = Math.min(1500, look.stainMs); // low: a quick fade
     this.scene.tweens.add({ targets: g, alpha: 0, delay: look.stainMs, duration: fade, onComplete: () => this.removeStain(g) });
@@ -171,7 +167,7 @@ export class BloodLayer {
     if (this.stains.length > MAX_STAINS) this.removeStain(this.stains[0]);
   }
 
-  private removeStain(g: Phaser.GameObjects.Graphics) {
+  private removeStain(g: Phaser.GameObjects.Image) {
     this.scene.tweens.killTweensOf(g);
     g.destroy();
     this.stains = this.stains.filter((s) => s !== g);

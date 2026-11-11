@@ -144,7 +144,7 @@ function start(room: Room) {
     scene: [scene],
   });
 
-  // HUD windows, docked on the right in this order: minimap, inventory, outfit, stats
+  // HUD windows, docked on the right in this order: minimap, inventory (+ outfit), stats
   const minimap = new Minimap(mapJson as MapData);
   scene.onLocalMove = (fx, fy) => minimap.setPlayer(fx, fy);
 

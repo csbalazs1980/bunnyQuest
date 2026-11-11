@@ -52,7 +52,7 @@ server closes every room).
   | High | a big spray, stains that stay 30 s, a pool under knocked-out bunnies and killed rats, drops trailing behind characters below 50% HP |
   | Maximum blood | comically over the top: every hit sprays big blobs 4–5 tiles around, huge stains and pools that stay 45 s, trailing splotches below 75% HP |
 
-  All of it is pixel squares in the game's style; at most 400 stains at a time. Code and levels: `client/src/blood.ts`.
+  All of it is pixel art (`assets/effects/blood`, see "Effect pictures"); at most 400 stains at a time. Code and levels: `client/src/blood.ts`.
 - The game is in **English, Serbian (Cyrillic), Hungarian and Romanian**. Pick the language on the start page (top-right)
   or in Options; it switches instantly, even in the middle of a game, and is remembered. On the first visit
   the browser's language is used.
@@ -139,7 +139,7 @@ Actually fighting other bunnies is not in the game yet.
   enough fatigue the action doesn't happen ("Too tired!"); a defender who is too tired can't stop a hit.
 - Everyone sees everyone's bursts, shields and hits. The server is the referee: it enforces the rate limits
   and fatigue, and decides hits and blocks.
-- Timings, range, fatigue costs and hit/block rules are in `shared/combat.ts`; the effects are drawn in `client/src/fx.ts`.
+- Timings, range, fatigue costs and hit/block rules are in `shared/combat.ts`; the effects are in `client/src/fx.ts` (pictures: `assets/effects/combat`, see "Effect pictures").
 
 ## Rats
 **100 rats** live in the wild (grass, forest, hills, swamps; never within 15 tiles of the start town).
@@ -155,7 +155,7 @@ Actually fighting other bunnies is not in the game yet.
   the body, so **Necromancy** can raise it (see Magic). A new rat appears somewhere else after 60 s.
 - Rats and crusaders also go for zombies (they count as foes, like bunnies).
 - Everything runs on the server (`server/src/rats.ts`); positions are whole pixels so idle rats send nothing.
-  All numbers are in `RAT` in `shared/enemies.ts`. The client draws them in `GameScene` (`makeRatTexture`).
+  All numbers are in `RAT` in `shared/enemies.ts`. Their picture: `rat.png` (see "Enemy pictures").
 
 ## Crusaders (easter egg)
 **30 bands** of five crusaders roam the wild (never within 20 tiles of the start town). Deliberately left
@@ -166,21 +166,22 @@ out of the in-game Help, so players find them on their own.
 - They are tall (knights ≈1.6 tiles, the king ≈1.8) but stand on their feet: position and collision are the
   bottom quarter of the sprite.
 - A bunny within **5 tiles** of the leader is charged: the king shouts **"CHARGE!"** (and again on his swings,
-  at most every 6 s). Swords reach a bit further than rat teeth; a swing shows a comic burst and is a normal
+  at most every 15 s). Swords reach a bit further than rat teeth; a swing shows a comic burst and is a normal
   hit or block. They give up beyond 8 tiles and ignore knocked-out / protected bunnies.
 - Rat-like toughness: knights 14 HP / attack 3, the king 20 HP / attack 4, one swing per 1.3 s, charging at
   125 px/s (slower than a bunny).
 - When **3 of a band have fallen**, the rest flee from any bunny within 6 tiles (185 px/s), screaming
   **"AAAAAAA!!!"**, **"RETREAT!"** and **"RUN FOR YOUR LIVES!"** in speech bubbles until they are 9 tiles
   away; they never fight again. If the king dies, the next knight leads (but only the king shouts "CHARGE!").
-  Shouts are translated on each player's screen.
+  Each one screams about every 4.5–9 s. Shouts are translated on each player's screen; how often they talk:
+  `CRUSADERS.speech` in `shared/enemies.ts`.
 - If they **knock out** the bunny they were charging, the survivors cheer one after the other: **"Victory is
   ours!"**, **"This was a fine day!"**, **"We triumphed again!"**; if the band lost someone in the fight, the
   leader opens with **"We lost many men, but we killed the monster."** Then they stand around pleased with themselves
   for a moment before marching on.
 - A band wiped out completely comes back somewhere else after 2 minutes.
-- Server: `server/src/crusaders.ts`; numbers: `CRUSADERS` in `shared/enemies.ts`; drawing:
-  `makeCrusaderTextures` in `client/src/scenes/GameScene.ts`.
+- Server: `server/src/crusaders.ts`; numbers: `CRUSADERS` in `shared/enemies.ts`; pictures:
+  `knight.png` and `king.png` (see "Enemy pictures").
 
 ## Hunger
 The **Hunger** bar (above the hotbar, and in the Stats window) goes from 0 to **50 = full**; the full part is
@@ -240,7 +241,7 @@ and aim color are in `SPELLS`; both spells reach `SPELL_RANGE_TILES` (8).
 to the caster within **2 tiles** (`NECROMANCY.reach`) rises from a green mist as a zombie that serves the
 caster for **10 minutes**, then crumbles to dust. No body in reach: "No dead body close enough!" and the
 spell stays charged. Zombie rat, zombie knight and zombie King Arthur: rotten, rusty and mossy, with glowing
-green eyes (drawn in code in `GameScene`, textures `zrat`, `zknight`, `zking`).
+green eyes (`zrat.png`, `zknight.png`, `zking.png`, see "Enemy pictures").
 - Zombies **follow** their master in a ring around it. When the master or one of them is attacked, they go
   for the attacker (a fight more than 8 tiles from the master is given up). A zombie that got far behind
   (e.g. its master woke up in the start town) rises again next to the master.
@@ -379,20 +380,61 @@ The `color` values are also used for the minimap. The code is in `client/src/til
 The bunny is a sprite sheet you can edit in any pixel-art editor (Aseprite, Piskel, Paint.NET…):
 `client/src/assets/characters/bunny.png`. It is drawn 3× bigger in the game (`BUNNY_SCALE`), crisp.
 
-- **Which way it looks:** walking **down** (also down+left, down+right) shows the front, walking straight
-  **up** shows the back, walking **left or right** (also up+left, up+right) shows the side, mirrored for left.
-  A bunny that stops keeps the view it last walked in; after a knock-out it stands facing front again.
+- **Which way it looks** (`client/src/facing.ts`, the same rule for every character): walking **down**
+  (also down+left, down+right) shows the front, walking straight **up** shows the back, walking **left or
+  right** (also up+left, up+right) shows that side. Left and right have their own frames (nothing is
+  mirrored), so each side can be shaded on its own. A bunny that stops keeps the view it last walked in;
+  attacking, blocking or casting turns it toward the action (by the same rule); after a knock-out it stands
+  facing front again.
 - **Frames**, left to right, each 15 × 19 pixels (hopping = looped while moving, 10 frames per second):
   **0** front standing, **1–4** front hopping (ears swing, hop up, ears swing back, hop up),
   **5** knocked out (x.x eyes), **6** back standing, **7–10** back hopping (fluffy tail, same hop as
-  the front), **11** side standing (facing right), **12–15** side hopping (ears back, leap, ears
-  forward, leap).
+  the front), **11** right side standing, **12–15** right side hopping (ears back, leap, ears
+  forward, leap), **16** left side standing, **17–20** left side hopping (for now a mirror copy of the right).
 - **Colors:** keep the fur **white**: every player's color is multiplied onto it (white becomes the
-  player's color, pink becomes a tinted pink; the light grey shading of the tail a darker shade). The **eyes must stay exactly `#222222`**: the glowing red
-  eyes of a bunny drawing on its magic scroll are found by that color, frame by frame.
+  player's color, pink becomes a tinted pink; the light grey shading of the tail a darker shade). The **eyes must stay exactly `#222222`**: the sparkles
+  of a bunny drawing on its magic scroll rise from them; their red glow is `effects/magic/casting-eyes.png`
+  (one frame per frame here).
 - Leave the background transparent. Changing the frame size or the number of hopping frames? Update
   `BUNNY_FRAME_W`, `BUNNY_FRAME_H` and `BUNNY_FRAMES` in `client/src/bunnySprite.ts`.
 - The bunny is about 25% bigger than the old one drawn in code; its collision and reach haven't changed.
+
+## Enemy pictures
+Sprite sheets in `client/src/assets/characters/`, edited the same way as the bunny and drawn 3× bigger
+(`ENEMY_SCALE`): `rat.png` (16 × 9 pixels per frame), `knight.png` (14 × 34), `king.png` (14 × 36) and their
+zombies `zrat.png`, `zknight.png`, `zking.png` (same sizes). Unlike the bunny they are in their real colors
+(no tinting).
+- **Frames**, left to right, 20 per sheet: **0** front standing, **1–4** front walking, **5** back standing,
+  **6–9** back walking, **10** right standing, **11–14** right walking, **15** left standing, **16–19** left
+  walking. Walk cycles: step, stand, other step, stand (rats 12 frames per second, crusaders 7).
+- They face the way they walk by the bunny's rule (the client works it out from their movement), and turn
+  toward whoever they attack. Killed: rats lie belly up and crusaders fall over, shown with their right
+  (or left) standing frame.
+- The crusaders stand on their feet: their position is the bottom eighth of the frame (keep the feet at
+  the bottom), the rest of the body rises above it.
+- Changing a frame size: `ENEMY_SHEETS`; moving frames: `ENEMY_FRAMES` (both in `client/src/enemySprite.ts`).
+
+## Effect pictures
+Everything that used to be drawn in code is now a sprite sheet in `client/src/assets/`, sorted by what it is for:
+`characters/` (bunny, enemies), `effects/combat/`, `effects/magic/`, `effects/blood/` (and, as before,
+`tiles/` and `equipments/`). Edit them in any pixel-art editor; how they move (pop, fly, fade) stays in the
+code. The full list with frame sizes and how much bigger each is drawn: `EFFECTS` in
+`client/src/effectSprites.ts` (change a frame size there too).
+- **Combat** (`fx.ts`): `burst.png` behind the attack words, `shield.png` for blocks. The words ("BAM!",
+  "Chomp!", "2x") stay text, so they are translated.
+- **Magic** (`magicFx.ts`): `casting-eyes.png` (the red glow over a spellcaster's eyes, **one frame per
+  `bunny.png` frame**: if you move the bunny's eyes, move the glow too) and `casting-sparkle.png`;
+  `fireball.png` (4 flickering frames, looped), `fireball-ember.png`, `fireball-explosion.png` (middle tile,
+  outer tiles), `fireball-kaboom.png` (behind the "KABOOM!" text), `fireball-scorch.png` (4 burnt-ground
+  variants, picked at random and mirrored); `healing-beam.png`, `healing-cross.png`; `necromancy-earth.png`,
+  `necromancy-mist.png`, `necromancy-clod.png`, `necromancy-dust.png`. The aiming target and the army's order
+  mark are still drawn in code, sized to the tiles.
+- **Blood** (`blood.ts`): `drop.png`, `splat.png` (small, medium, big: two of each), `stain.png` (tiny, small,
+  medium, large, huge: three of each; pools use the large and huge ones).
+- **Dots**: sheets of 1 × 1 pixel frames (sparkles, embers, mist, clods, dust, droplets), one color per
+  frame: each particle picks one at random and is drawn a few screen pixels big. Add frames for more colors.
+- Sheets with variants pick one at random, so adding frames adds variety (for `splat.png` and `stain.png`
+  keep the groups: their frame numbers are in `blood.ts`).
 
 ## HUD windows
 The **Map** (minimap with a red dot for you) and the **Inventory** are small windows stacked on the right

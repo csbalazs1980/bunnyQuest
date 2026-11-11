@@ -157,7 +157,8 @@
         background: var(--ui-bg); border: 2px solid var(--ui-line); border-radius: 10px;
         font-size: 12px; user-select: none; overflow: hidden; pointer-events: auto; flex-shrink: 0;
       }
-      #ui-dock > #inventory { flex-shrink: 1; min-height: 150px; } /* if space runs out, the inventory list scrolls */
+      #ui-dock > #inventory { flex-shrink: 1; } /* if space runs out, the inventory list scrolls */
+      #ui-dock > #inventory:not(.collapsed) { min-height: 330px; } /* never squeeze the outfit mannequin */
       .ui-window.floating { position: fixed; z-index: 5; } /* raised further when grabbed */
       .ui-window.dragging { opacity: 0.85; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5); }
       .ui-window-bar {
@@ -194,6 +195,12 @@
         position: absolute; width: 6px; height: 6px; margin: -4px 0 0 -4px; border-radius: 50%;
         background: #ff0000; border: 1px solid #fff;
       }
+
+      /* Inventory window: item list (left) + outfit mannequin (right), see src/ui/hud.ts */
+      #inventory { width: 410px; }
+      .inv-split { display: flex; flex: 1 1 auto; min-height: 0; }
+      .inv-items { width: 204px; flex: none; display: flex; flex-direction: column; min-height: 0; }
+      .inv-outfit { flex: none; width: 202px; border-left: 2px solid var(--ui-line); }
 
       .inv-filter {
         margin: 6px; padding: 4px 6px; font: inherit; color: #eee; background: #2a2836;
@@ -300,9 +307,10 @@
       /* ---------- Magic ---------- */
       /* The magic scroll (hold F, src/ui/scroll.ts): only the caster sees it */
       #scroll-overlay {
-        position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center;
-        pointer-events: none; padding-bottom: 100px; box-sizing: border-box; /* clear of the hotbar */
-        --pw: min(calc((100vh - 210px) / 1.6), 440px, calc(100vw - 90px));
+        position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: flex-start;
+        pointer-events: none; padding: 0 0 100px 32px; box-sizing: border-box; /* clear of the hotbar */
+        /* paper width: 60% of the old full-size scroll, on the left so the bunny stays visible */
+        --pw: min(calc((100vh - 210px) / 1.6 * 0.6), 264px, calc(100vw - 90px));
       }
       #scroll-overlay[hidden] { display: none; }
       #scroll-overlay.drawing { pointer-events: auto; background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0.1), rgba(10, 4, 4, 0.45)); }
@@ -311,38 +319,38 @@
       @keyframes scroll-in { from { opacity: 0; transform: scaleY(0.6); } }
       @keyframes scroll-out { to { opacity: 0; transform: translateY(8px) scale(0.97); } }
       .scroll-rod {
-        position: relative; width: calc(var(--pw) + 22px); height: 22px; border-radius: 11px; z-index: 1;
+        position: relative; width: calc(var(--pw) + 14px); height: 14px; border-radius: 7px; z-index: 1;
         background: linear-gradient(#a8743e, #6b4321 55%, #4a2c14); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.45);
       }
       .scroll-rod::before, .scroll-rod::after {
-        content: ""; position: absolute; top: -6px; width: 34px; height: 34px; border-radius: 50%;
+        content: ""; position: absolute; top: -4px; width: 20px; height: 20px; border-radius: 50%;
         background: radial-gradient(circle at 35% 35%, #c9965a, #6b4321 60%, #3a220e); border: 2px solid #2a170a;
       }
-      .scroll-rod::before { left: -20px; }
-      .scroll-rod::after { right: -20px; }
+      .scroll-rod::before { left: -12px; }
+      .scroll-rod::after { right: -12px; }
       .scroll-paper {
-        position: relative; width: var(--pw); height: calc(var(--pw) * 1.6); margin: -4px 0; cursor: crosshair;
+        position: relative; width: var(--pw); height: calc(var(--pw) * 1.6); margin: -3px 0; cursor: crosshair;
         background:
           radial-gradient(ellipse at 30% 20%, rgba(255, 255, 240, 0.55), transparent 60%),
           radial-gradient(ellipse at 70% 85%, rgba(150, 100, 40, 0.18), transparent 55%),
           linear-gradient(90deg, #d9c08a, #f1e2b8 12%, #f6ead0 50%, #f1e2b8 88%, #d9c08a);
-        box-shadow: inset 0 0 26px rgba(120, 80, 30, 0.45), 0 6px 24px rgba(0, 0, 0, 0.5);
+        box-shadow: inset 0 0 16px rgba(120, 80, 30, 0.45), 0 4px 16px rgba(0, 0, 0, 0.5);
       }
       .scroll-paper canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
       .scroll-labels { position: absolute; inset: 0; pointer-events: none; }
       .scroll-rune {
-        position: absolute; right: 8px; transform: translateY(-50%); padding: 2px 8px; border-radius: 10px;
-        font: 600 14px "BunnyChat", system-ui, sans-serif; color: #fff; background: #3f7d3a; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+        position: absolute; right: 6px; transform: translateY(-50%); padding: 1px 6px; border-radius: 8px;
+        font: 600 12px "BunnyChat", system-ui, sans-serif; color: #fff; background: #3f7d3a; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
         animation: toast-in 0.2s ease-out;
       }
       .scroll-rune.unknown { background: #8a2a2a; }
       .scroll-status {
-        min-height: 26px; margin-top: 10px; padding: 0 12px; border-radius: 8px;
-        font: 600 18px "BunnyChat", system-ui, sans-serif; color: #f6ead0; text-shadow: 0 1px 3px #000; text-align: center;
+        min-height: 22px; margin-top: 8px; padding: 0 8px; border-radius: 8px; max-width: calc(var(--pw) + 40px);
+        font: 600 15px "BunnyChat", system-ui, sans-serif; color: #f6ead0; text-shadow: 0 1px 3px #000; text-align: center;
       }
       .scroll-status.ok { color: #ffd27a; }
       .scroll-status.fail { color: #ff8a80; }
-      .scroll-hint { margin-top: 2px; font-size: 12px; color: #d8cdb8; text-shadow: 0 1px 2px #000; text-align: center; max-width: calc(100vw - 32px); }
+      .scroll-hint { margin-top: 2px; font-size: 12px; color: #d8cdb8; text-shadow: 0 1px 2px #000; text-align: center; max-width: calc(var(--pw) + 40px); }
       #scroll-overlay:not(.drawing) .scroll-hint { visibility: hidden; }
 
       /* Spell slots on the hotbar (X, C, V, B; src/ui/hud.ts) */

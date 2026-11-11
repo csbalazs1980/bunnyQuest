@@ -48,6 +48,13 @@ export const CRUSADERS = {
   minSpawnDistance: 20 * TILE_SIZE, // from the start town
   knight: { hp: 14, attack: 3 },
   king: { hp: 20, attack: 4 },
+  // How often they talk (milliseconds), so the speech bubbles don't flood the screen
+  speech: {
+    fleeEveryMs: 4500, // a fleeing crusader screams again after this long...
+    fleeJitterMs: 4500, // ...plus up to this much more (about every 4.5-9 s each)
+    breakGapMs: 1100, // when the band breaks, they start screaming one after the other, this far apart
+    chargeEveryMs: 15000, // the king repeats "CHARGE!" on his swings at most this often
+  },
 };
 
 /** Things crusaders shout (translated on each client: "shout.<line>"). */

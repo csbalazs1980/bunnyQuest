@@ -102,7 +102,7 @@ export class Crusaders {
       band.broken = true;
       band.state = "flee";
       // everyone left screams, one after the other
-      alive.forEach(([, m], i) => (m.shoutAt = now + i * 450));
+      alive.forEach(([, m], i) => (m.shoutAt = now + i * C.speech.breakGapMs));
     }
     return true;
   }
@@ -233,7 +233,7 @@ export class Crusaders {
           this.shout(id, m.pendingShout as Shout);
           m.pendingShout = "";
         } else if (band.state === "flee" && now >= m.shoutAt) {
-          m.shoutAt = now + 1800 + Math.random() * 1800;
+          m.shoutAt = now + C.speech.fleeEveryMs + Math.random() * C.speech.fleeJitterMs;
           this.shout(id, FLEE_LINES[Math.floor(Math.random() * FLEE_LINES.length)]);
         }
       });
@@ -258,10 +258,10 @@ export class Crusaders {
     band.until = now + 2500 + alive.length * 900;
   }
 
-  /** "CHARGE!" when the charge begins, and again on his swings (at most every 6 s). */
+  /** "CHARGE!" when the charge begins, and again on his swings (at most every 15 s: C.speech.chargeEveryMs). */
   private kingShouts(id: string, king: Enemy, band: Band, now: number, start: boolean) {
     if (!start && now < band.chargeShoutAt) return;
-    band.chargeShoutAt = now + 6000;
+    band.chargeShoutAt = now + C.speech.chargeEveryMs;
     this.shout(id, "charge");
   }
 

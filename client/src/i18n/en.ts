@@ -217,7 +217,7 @@ export const en = {
 Walk with [W] [A] [S] [D] or the arrow keys. Roads make you faster. Forests, hills, rivers, swamps and snowy summits slow you down, and nobody can swim across the sea. You can't walk through other bunnies or animals: everyone keeps about half a tile apart.
 
 ## Windows
-- [M] map, [I] inventory, [O] outfit, [K] stats, [P] spellbook: press the key or click the title bar to fold a window up, and again to open it.
+- [M] map, [I] inventory (with your outfit), [K] stats, [P] spellbook: press the key or click the title bar to fold a window up, and again to open it.
 - Drag a title bar to move its window. Right-click the title bar to put the window back in its usual place.
 - [Esc] opens the options, [H] opens this help.
 

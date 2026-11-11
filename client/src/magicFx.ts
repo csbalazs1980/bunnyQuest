@@ -1,11 +1,13 @@
 // Magic effects drawn in the game world: glowing red, sparkling eyes while a bunny draws on its scroll,
 // the fireball (flight, explosion on 3×3 tiles, scorch marks), healing (a beam of green light) and the
-// target shown while aiming a spell.
+// target shown while aiming a spell. Pictures: assets/effects/magic (src/effectSprites.ts); the target
+// and the army's order mark are drawn here, to fit the tiles.
 import Phaser from "phaser";
+import { dot, effectImage, EFFECTS } from "./effectSprites";
 import { TILE_SIZE } from "../../shared/combat";
 import { FIREBALL, inSpellRange, tileCenter } from "../../shared/magic";
 import { t } from "./i18n";
-import { eyeOffsets } from "./bunnySprite";
+import { BUNNY_SCALE, eyeOffsets } from "./bunnySprite";
 
 const FX_DEPTH = 200000; // above characters (their depth is their y position), like src/fx.ts
 const SCORCH_MS = 8000; // how long the burnt ground stays
@@ -28,7 +30,8 @@ export class MagicFx {
   setCasting(sprite: Phaser.GameObjects.Sprite, on: boolean) {
     const glow = this.glows.get(sprite);
     if (on && !glow) {
-      const eyes = this.scene.add.image(sprite.x, sprite.y, "bunny-eyes", sprite.frame.name); // made in src/bunnySprite.ts
+      // the glowing eyes: assets/effects/magic/casting-eyes.png, one frame per bunny frame
+      const eyes = this.scene.add.image(sprite.x, sprite.y, "casting-eyes", sprite.frame.name).setScale(BUNNY_SCALE);
       this.glows.set(sprite, { sprite, eyes, nextSparkAt: 0 });
     } else if (!on && glow) {
       glow.eyes.destroy();
@@ -56,10 +59,8 @@ export class MagicFx {
       const eye = Phaser.Utils.Array.GetRandom(eyeOffsets[Number(s.frame.name)] ?? [{ x: 0, y: 0 }]) ?? { x: 0, y: 0 };
       const eyeX = eye.x * (s.flipX ? -1 : 1);
       // (no additive blending: it would vanish on white bunnies)
-      const color = Phaser.Utils.Array.GetRandom([0xff2020, 0xff5a1a, 0xffa020, 0xffe040]);
       const size = Math.random() < 0.35 ? 4 : 3;
-      const spark = this.scene.add
-        .rectangle(s.x + eyeX + Phaser.Math.Between(-3, 3), s.y + eye.y + Phaser.Math.Between(-2, 2), size, size, color)
+      const spark = dot(this.scene, "casting-sparkle", s.x + eyeX + Phaser.Math.Between(-3, 3), s.y + eye.y + Phaser.Math.Between(-2, 2), size)
         .setDepth(s.depth + 0.6);
       this.scene.tweens.add({
         targets: spark,
@@ -110,12 +111,8 @@ export class MagicFx {
   /** A fireball flies from (x, y) to tile (tx, ty) in `ms`, in a little arc, then explodes. */
   fireball(x: number, y: number, tx: number, ty: number, ms: number) {
     const to = tileCenter(tx, ty);
-    const ball = this.scene.add.container(x, y).setDepth(FX_DEPTH);
-    const g = this.scene.add.graphics();
-    g.fillStyle(0xff3a10, 0.4).fillCircle(0, 0, 15);
-    g.fillStyle(0xff7a1a, 0.9).fillCircle(0, 0, 9);
-    g.fillStyle(0xffe070, 1).fillCircle(0, 0, 5);
-    ball.add(g);
+    const ball = this.scene.add.sprite(x, y, "fireball").setDepth(FX_DEPTH).play("fireball-fly");
+    const scale = EFFECTS.fireball.scale;
     const lift = Math.min(70, Math.hypot(to.x - x, to.y - y) * 0.25); // the arc's height
     let lastTrail = 0;
     this.scene.tweens.addCounter({
@@ -125,7 +122,7 @@ export class MagicFx {
       onUpdate: (tw) => {
         const p = tw.getValue() ?? 0;
         ball.setPosition(Phaser.Math.Linear(x, to.x, p), Phaser.Math.Linear(y, to.y, p) - Math.sin(Math.PI * p) * lift);
-        ball.setScale(0.9 + 0.2 * Math.sin(this.scene.time.now / 40));
+        ball.setScale(scale * (0.9 + 0.2 * Math.sin(this.scene.time.now / 40)));
         if (this.scene.time.now - lastTrail < 16) return;
         lastTrail = this.scene.time.now;
         this.ember(ball.x, ball.y, 0, 0, 3, 300); // a smoky, sparkling trail
@@ -145,8 +142,9 @@ export class MagicFx {
       for (let dy = -r; dy <= r; dy++) {
         const x = (tx + dx) * TILE_SIZE;
         const y = (ty + dy) * TILE_SIZE;
-        const flash = this.scene.add
-          .rectangle(x + TILE_SIZE / 2, y + TILE_SIZE / 2, TILE_SIZE, TILE_SIZE, dx || dy ? 0xff6a10 : 0xffc030, 0.75)
+        const flash = effectImage(this.scene, "fireball-explosion", x + TILE_SIZE / 2, y + TILE_SIZE / 2, dx || dy ? 1 : 0)
+          .setDisplaySize(TILE_SIZE, TILE_SIZE)
+          .setAlpha(0.75)
           .setDepth(FX_DEPTH - 1);
         this.scene.tweens.add({ targets: flash, alpha: 0, duration: 650, delay: 120 + 60 * (Math.abs(dx) + Math.abs(dy)), onComplete: () => flash.destroy() });
         this.scorch(x, y);
@@ -171,15 +169,9 @@ export class MagicFx {
     const x = tx * TILE_SIZE;
     const y = ty * TILE_SIZE;
     const beamH = TILE_SIZE * 3;
-    const beam = this.scene.add.graphics().setDepth(FX_DEPTH - 1);
-    // The beam: stripes that are brightest in the middle, fading upward (pixel style, no blur)
-    for (let i = 0; i < 8; i++) {
-      const w = TILE_SIZE * (1 - i * 0.11);
-      beam.fillStyle(i < 3 ? 0x9cf5a8 : 0xd8ffd8, 0.1 + i * 0.04);
-      beam.fillRect(x + (TILE_SIZE - w) / 2, y + TILE_SIZE - beamH, w, beamH);
-    }
-    beam.fillStyle(0x5ee07a, 0.45).fillRect(x, y, TILE_SIZE, TILE_SIZE); // the tile itself
-    beam.setAlpha(0).setScale(1, 1);
+    // The beam (its bottom square lights up the tile itself)
+    const beam = effectImage(this.scene, "healing-beam", x, y + TILE_SIZE, 0).setOrigin(0, 1).setDisplaySize(TILE_SIZE, beamH).setDepth(FX_DEPTH - 1);
+    beam.setAlpha(0);
     this.scene.tweens.add({ targets: beam, alpha: 1, duration: 140, yoyo: true, hold: 380, onComplete: () => beam.destroy() });
     for (let i = 0; i < 14; i++) {
       this.scene.time.delayedCall(i * 45, () =>
@@ -188,7 +180,7 @@ export class MagicFx {
     }
     for (const s of healed) {
       if (!s.active) continue;
-      this.scene.tweens.add({ targets: s, scale: { from: 1.15, to: 1 }, duration: 380, ease: "Back.easeOut" });
+      this.scene.tweens.add({ targets: s, scale: { from: BUNNY_SCALE * 1.15, to: BUNNY_SCALE }, duration: 380, ease: "Back.easeOut" }); // a little pop
       for (let i = 0; i < 5; i++) this.scene.time.delayedCall(120 + i * 90, () => s.active && this.cross(s.x + Phaser.Math.Between(-14, 14), s.y - 8));
     }
   }
@@ -198,17 +190,13 @@ export class MagicFx {
    * and a few green wisps drift up.
    */
   raise(x: number, y: number) {
-    const ground = this.scene.add.graphics().setDepth(-0.25);
-    for (let i = 0; i < 18; i++) {
-      ground.fillStyle(Phaser.Utils.Array.GetRandom([0x3a2a1a, 0x4a3a22, 0x2a1e12]), 0.75);
-      ground.fillRect(x + Phaser.Math.Between(-22, 18), y + Phaser.Math.Between(-6, 10), 4 * Phaser.Math.Between(1, 2), 4);
-    }
+    const ground = effectImage(this.scene, "necromancy-earth", x, y + 2, 0).setFlipX(Math.random() < 0.5).setDepth(-0.25);
     this.scene.tweens.add({ targets: ground, alpha: 0, delay: 2500, duration: 1500, onComplete: () => ground.destroy() });
     for (let i = 0; i < 26; i++) {
       this.scene.time.delayedCall(i * 35, () => {
-        const size = Phaser.Math.Between(3, 6);
-        const color = Phaser.Utils.Array.GetRandom([0x9be04a, 0x6fae3a, 0xc8ff7a, 0x4a6a2a]);
-        const m = this.scene.add.rectangle(x + Phaser.Math.Between(-20, 20), y + Phaser.Math.Between(-4, 8), size, size, color, 0.85).setDepth(FX_DEPTH);
+        const m = dot(this.scene, "necromancy-mist", x + Phaser.Math.Between(-20, 20), y + Phaser.Math.Between(-4, 8), Phaser.Math.Between(3, 6))
+          .setAlpha(0.85)
+          .setDepth(FX_DEPTH);
         this.scene.tweens.add({
           targets: m, x: m.x + Phaser.Math.Between(-10, 10), y: m.y - Phaser.Math.Between(30, 70), alpha: 0,
           duration: Phaser.Math.Between(700, 1200), ease: "Sine.easeOut", onComplete: () => m.destroy(),
@@ -218,7 +206,7 @@ export class MagicFx {
     for (let i = 0; i < 8; i++) {
       const a = Math.PI + Math.random() * Math.PI; // clods fly up and out
       const v = Phaser.Math.Between(18, 40);
-      const c = this.scene.add.rectangle(x, y + 4, 4, 4, 0x3a2a1a).setDepth(FX_DEPTH);
+      const c = dot(this.scene, "necromancy-clod", x, y + 4, 4).setDepth(FX_DEPTH);
       this.scene.tweens.add({ targets: c, x: x + Math.cos(a) * v, y: y + 4 + Math.sin(a) * v * 0.7, alpha: 0, duration: 500, ease: "Quad.easeOut", onComplete: () => c.destroy() });
     }
   }
@@ -226,8 +214,7 @@ export class MagicFx {
   /** A zombie's time is up: it crumbles into a puff of grey-brown dust. */
   crumble(x: number, y: number) {
     for (let i = 0; i < 22; i++) {
-      const color = Phaser.Utils.Array.GetRandom([0x8a8070, 0x6a6050, 0xa89a80, 0x5f8a3a]);
-      const d = this.scene.add.rectangle(x + Phaser.Math.Between(-12, 12), y - Phaser.Math.Between(0, 30), 4, 4, color).setDepth(FX_DEPTH);
+      const d = dot(this.scene, "necromancy-dust", x + Phaser.Math.Between(-12, 12), y - Phaser.Math.Between(0, 30), 4).setDepth(FX_DEPTH);
       this.scene.tweens.add({
         targets: d, x: d.x + Phaser.Math.Between(-18, 18), y: y + Phaser.Math.Between(-4, 8), alpha: 0,
         duration: Phaser.Math.Between(500, 900), ease: "Quad.easeIn", onComplete: () => d.destroy(),
@@ -248,46 +235,28 @@ export class MagicFx {
 
   /** A little green pixel cross floating up and fading. */
   private cross(x: number, y: number) {
-    const c = this.scene.add.graphics().setDepth(FX_DEPTH);
-    const color = Phaser.Utils.Array.GetRandom([0x5ee07a, 0x9cf5a8, 0xffffff]);
-    c.fillStyle(0x1e6b2e, 1).fillRect(-4, -2, 8, 4).fillRect(-2, -4, 4, 8); // dark outline
-    c.fillStyle(color, 1).fillRect(-3, -1, 6, 2).fillRect(-1, -3, 2, 6);
-    c.setPosition(x, y);
+    const c = effectImage(this.scene, "healing-cross", x, y).setDepth(FX_DEPTH);
     this.scene.tweens.add({ targets: c, y: y - Phaser.Math.Between(26, 44), alpha: 0, duration: Phaser.Math.Between(600, 900), onComplete: () => c.destroy() });
   }
 
   /** A pixel ember: moves by (vx, vy) over `ms` and fades. */
   private ember(x: number, y: number, vx: number, vy: number, size: number, ms: number) {
-    const color = Phaser.Utils.Array.GetRandom([0xff3a10, 0xff7a1a, 0xffb040, 0xffe070]);
-    const e = this.scene.add
-      .rectangle(x + Phaser.Math.Between(-4, 4), y + Phaser.Math.Between(-4, 4), size, size, color)
-      .setDepth(FX_DEPTH);
+    const e = dot(this.scene, "fireball-ember", x + Phaser.Math.Between(-4, 4), y + Phaser.Math.Between(-4, 4), size).setDepth(FX_DEPTH);
     this.scene.tweens.add({ targets: e, x: e.x + vx, y: e.y + vy - 12, alpha: 0, duration: ms, ease: "Quad.easeOut", onComplete: () => e.destroy() });
   }
 
   /** Burnt ground on one tile: dark pixel blotches that fade after SCORCH_MS. */
   private scorch(x: number, y: number) {
-    const g = this.scene.add.graphics().setDepth(-0.5); // above the roads, under everything else
-    const px = 4; // blotch pixel size
-    for (let i = 0; i < 26; i++) {
-      g.fillStyle(Math.random() < 0.7 ? 0x1a1410 : 0x3a2618, Phaser.Math.FloatBetween(0.25, 0.55));
-      g.fillRect(x + Phaser.Math.Between(0, TILE_SIZE / px - 2) * px, y + Phaser.Math.Between(0, TILE_SIZE / px - 2) * px, px * Phaser.Math.Between(1, 3), px * Phaser.Math.Between(1, 2));
-    }
+    const g = effectImage(this.scene, "fireball-scorch", x + TILE_SIZE / 2, y + TILE_SIZE / 2) // a random one, maybe mirrored
+      .setDisplaySize(TILE_SIZE, TILE_SIZE)
+      .setFlip(Math.random() < 0.5, Math.random() < 0.5)
+      .setDepth(-0.5); // above the roads, under everything else
     this.scene.tweens.add({ targets: g, alpha: 0, delay: SCORCH_MS - 1500, duration: 1500, onComplete: () => g.destroy() });
   }
 
   /** The comic "KABOOM!" over the blast, in the style of the attack bursts (src/fx.ts). */
   private boom(x: number, y: number) {
-    const burst = this.scene.add.graphics();
-    const points: Phaser.Math.Vector2[] = [];
-    const spikes = 16;
-    for (let i = 0; i < spikes * 2; i++) {
-      const rr = i % 2 ? 26 : 46;
-      const a = (i / (spikes * 2)) * Math.PI * 2;
-      points.push(new Phaser.Math.Vector2(Math.cos(a) * rr * 1.3, Math.sin(a) * rr));
-    }
-    burst.fillStyle(0xffb020).fillPoints(points, true);
-    burst.lineStyle(3, 0xc81e10).strokePoints(points, true);
+    const burst = effectImage(this.scene, "fireball-kaboom", 0, 0, 0);
     const text = this.scene.add
       .text(0, 0, t("fx.boom"), {
         fontFamily: "Impact, 'Arial Black', sans-serif",

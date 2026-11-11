@@ -1,5 +1,5 @@
-// Outfit window (hotkey O): a mannequin bunny outline with equipment slots around it.
-import { UiWindow } from "./window";
+// Outfit panel: a mannequin bunny outline with equipment slots around it.
+// It lives on the right half of the inventory window (src/ui/hud.ts).
 import { createSlot, fillSlot, type SlotHandlers, type SlotItem } from "./slots";
 import { tSlot } from "../i18n";
 
@@ -28,11 +28,9 @@ const MANNEQUIN_SVG = `
 </svg>`;
 
 export class OutfitView {
-  readonly window: UiWindow;
   private slots = new Map<string, HTMLDivElement>();
 
-  constructor(handlersFor: (slotId: string) => SlotHandlers) {
-    this.window = new UiWindow({ id: "outfit", titleKey: "window.outfit", hotkey: "O" });
+  constructor(parent: HTMLElement, handlersFor: (slotId: string) => SlotHandlers) {
     const stage = document.createElement("div");
     stage.className = "outfit";
     stage.innerHTML = MANNEQUIN_SVG;
@@ -43,7 +41,7 @@ export class OutfitView {
       this.slots.set(slotId, slot);
       stage.append(slot);
     }
-    this.window.body.append(stage);
+    parent.append(stage);
   }
 
   slotElement(slotId: string) {
