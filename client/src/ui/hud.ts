@@ -75,6 +75,8 @@ export class Hud {
   private typeButtons: HTMLButtonElement[] = [];
   private sortButtons: Record<SortKey, HTMLButtonElement>;
   private list: HTMLDivElement;
+  private silverLine: HTMLDivElement;
+  private silver = 0;
   private hotbar: HTMLDivElement;
   private vitals: HTMLDivElement;
   private hotSlots: HTMLDivElement[] = [];
@@ -144,7 +146,8 @@ export class Hud {
     this.list = el("div", { className: "inv-list" });
     // Two columns side by side: the item list on the left, the outfit (mannequin) on the right
     const itemsColumn = el("div", { className: "inv-items" });
-    itemsColumn.append(this.filterInput, types, head, this.list);
+    this.silverLine = el("div", { className: "inv-silver" });
+    itemsColumn.append(this.filterInput, types, head, this.list, this.silverLine);
     const outfitColumn = el("div", { className: "inv-outfit" });
     const split = el("div", { className: "inv-split" });
     split.append(itemsColumn, outfitColumn);
@@ -224,6 +227,7 @@ export class Hud {
     this.vitals.querySelector<HTMLElement>(".fatigue")!.title = t("vitals.fatigueHint");
     this.vitals.querySelector<HTMLElement>(".hunger")!.title = t("vitals.hungerHint");
     this.armyButton.title = t("army.button", { n: this.armySize });
+    this.renderSilver();
     this.items = this.rawItems.map((it) => ({ ...it, name: tItem(it.defId) }));
     this.renderAll();
   }
@@ -243,6 +247,18 @@ export class Hud {
     this.equipment = equipment;
     if (this.pickedItemId && !this.pickedItem()) this.pickedItemId = null;
     this.renderAll();
+  }
+
+  /** Our silver (money for trading), shown under the item list. */
+  setSilver(silver: number) {
+    if (silver === this.silver && this.silverLine.textContent) return;
+    this.silver = silver;
+    this.renderSilver();
+  }
+
+  private renderSilver() {
+    this.silverLine.textContent = `🪙 ${t("trade.silver")}: ${this.silver}`;
+    this.silverLine.title = t("inv.silverHint");
   }
 
   /** The charged spells (from the server); the countdown in them changes once a second. */

@@ -30,8 +30,8 @@ export const en = {
   "stat.luck": "Luck",
   "statHelp.strength": "Affects attack",
   "statHelp.agility": "Affects attack, defense and movement speed",
-  "statHelp.intelligence": "Makes your spells stronger, gives you more spell slots and makes spells last longer",
-  "statHelp.charm": "Will matter later",
+  "statHelp.intelligence": "Makes your spells stronger, gives you more spell slots and makes spells last longer. Together with Charm it helps you guess what items are worth",
+  "statHelp.charm": "Together with Intelligence it is your business sense: how well you can guess what items are worth when trading",
   "statHelp.endurance": "Affects health, stamina (fatigue) and how fast you recover",
   "statHelp.luck": "Lucky hits and lucky blocks happen more often",
 
@@ -42,6 +42,85 @@ export const en = {
   "window.outfit": "Outfit",
   "window.stats": "Stats",
   "window.spellbook": "Spellbook",
+
+  // trading (Q menu, trade window: src/ui/actionMenu.ts, src/ui/trade.ts)
+  "actions.title": "Actions",
+  "actions.tradeWith": "Trade with…",
+  "actions.back": "Back",
+  "actions.busy": "You are already trading.",
+  "actions.nobody": "No bunny within {n} tiles. Walk closer to someone first.",
+  "actions.tiles": "{n} tiles",
+  "inv.silverHint": "Your money. Use it in trades (Q → Trade with…).",
+  "trade.title": "Trade with {name}",
+  "trade.close": "Close (cancels the trade)",
+  "trade.silver": "Silver",
+  "trade.yourInventory": "Your inventory",
+  "trade.theirInventory": "Their inventory",
+  "trade.give": "↓ You give (sell)",
+  "trade.take": "↓ You get (buy)",
+  "trade.giveSilver": "Silver you give",
+  "trade.takeSilver": "Silver you want",
+  "trade.offer": "Offer",
+  "trade.counter": "Counter-offer",
+  "trade.accept": "Accept",
+  "trade.acceptChangedHint": "You changed their offer: send it back with Counter-offer, or undo your changes to accept it.",
+  "trade.status.waiting": "Waiting for {name}…",
+  "trade.status.first": "Drag what you sell and what you want into the lower boxes, then press Offer.",
+  "trade.status.changed": "You changed the offer: press Counter-offer to send it back.",
+  "trade.status.theirOffer": "{name} made an offer: accept it, or change it and send a counter-offer.",
+  "trade.rowHint": "Drag it down (or double-click) to put it into the offer",
+  "trade.rowOfferHint": "Drag it back up (or double-click / right-click) to take it out",
+  "trade.dropGive": "Drag your items here",
+  "trade.dropTake": "Drag their items here",
+  "trade.popup.request": "{name} would like to trade with you.",
+  "trade.popup.accept": "Accept",
+  "trade.popup.reject": "Reject",
+  "trade.popup.waitAnswer": "Waiting for {name} to answer…",
+  "trade.popup.waitOffer": "Trading with {name}: waiting for their offer…",
+  "trade.popup.cancel": "Cancel",
+  "trade.end.done": "Trade with {name} done!",
+  "trade.end.rejected": "{name} doesn't want to trade now.",
+  "trade.end.cancelled": "{name} cancelled the trade.",
+  "trade.end.tooFar": "You walked too far apart: the trade with {name} is cancelled.",
+  "trade.end.attacked": "{name} was attacked: the trade is cancelled.",
+  "trade.end.attackedMe": "You were attacked: the trade with {name} is cancelled.",
+  "trade.end.knockedOut": "{name} was knocked out: the trade is cancelled.",
+  "trade.end.knockedOutMe": "You were knocked out: the trade with {name} is cancelled.",
+  "trade.end.left": "{name} left the game: the trade is cancelled.",
+  "trade.end.expired": "{name} didn't answer the trade request.",
+  "trade.end.busy": "{name} is trading with someone else right now.",
+  "trade.end.unavailable": "{name} can't trade right now.",
+  "trade.error.changed": "Their items or silver changed since the offer: it can't be accepted. Send a counter-offer instead.",
+  "trade.error.invalid": "That offer isn't possible (some items or silver are missing).",
+  "trade.giveWorth": "You offer: worth {range} 🪙",
+  "trade.takeWorth": "You ask for: worth {range} 🪙",
+  "trade.worthHint": "What you think it's all worth, silver included. Your guesses get better with business sense ({n}/{max}).",
+  "trade.valueHint": "What you think it's worth (business sense {n}/{max})",
+  "trade.valueHintEach": "What you think one of them is worth (business sense {n}/{max})",
+  "trade.sense": "Business sense",
+  "trade.senseHint": "Charm + Intelligence. The higher it is, the better you can guess what items are worth: at 20 you know it exactly, at 2 you have no clue (and may be completely wrong).",
+  "stats.business": "Business sense",
+  "help.trade.title": "Trading",
+  "help.trade.body": `## Starting a trade
+Walk up to another bunny (at most **7 tiles** away), press [Q], pick **Trade with…** and click their name. They get a popup at the top of the screen and can **Accept** or **Reject** it.
+
+## Making offers
+- The trade window shows both of you with your silver: your inventory on the left, theirs on the right.
+- Drag your items down into **You give** and their items into **You get** (or double-click them). Drag a row back up, or double-click / right-click it, to take it out; − and + change how many of a stack.
+- Type how much silver you give and how much you want.
+- Whoever started the trade makes the first offer. Then it's the other bunny's turn: **Accept** the offer as it is, or change it and send a **Counter-offer**. You take turns until one of you accepts.
+- Items you trade away also leave your hands and outfit.
+
+## When a trade is cancelled
+- Either of you closes the window (✕).
+- You walk more than 7 tiles apart.
+- Either of you is attacked or knocked out, or leaves the game.
+- A request nobody answers expires after 30 seconds.
+
+## What is it worth?
+Every row shows what *you think* one piece is worth, like 20–40🪙, and under both lower boxes you see the guessed total of what you offer and what you ask for (silver included). How good your guesses are depends on your **business sense = Charm + Intelligence**: at 2 you have no clue at all and your guess may even miss the real price completely, around 10 you can tell treasure from garbage, and the closer you get to 20 the more exact you are. Your guesses are made when the trade starts and stay the same until it ends.
+
+Every new bunny starts with **100 silver**; yours is shown under the inventory list.`,
 
   // inventory
   "inv.filter": "filter…",
@@ -169,6 +248,7 @@ export const en = {
   "rune.mor.meaning": "death",
   "magic.scrollHint": "Draw the runes from top to bottom · let go of F to cast · right-click wipes the scroll",
   "magic.reading": "Reading the runes…",
+  "magic.ready": "{spell}! Let go of F to cast it",
   "magic.unknown": "?",
   "magic.charged": "{spell}! Press {key} to use it",
   "magic.fail.empty": "The scroll is empty",
@@ -240,6 +320,9 @@ The green hunger bar slowly empties. A well-fed bunny heals over time; a starvin
 
 ## Magic
 Hold [F] to open your magic scroll and draw runes on it; spells you charge appear in the [X] [C] [V] [B] slots. See the **Magic** topic. Press [N] to send your undead army (raised with Necromancy) to a tile.
+
+## Trading
+Press [Q], pick **Trade with…** and click a bunny's name (see the **Trading** topic).
 
 ## Chat
 Press [T], type your message and press [Enter]. It pops up in a bubble over your bunny for everyone to see. [Esc] cancels.`,

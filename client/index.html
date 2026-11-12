@@ -309,8 +309,15 @@
       #scroll-overlay {
         position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: flex-start;
         pointer-events: none; padding: 0 0 100px 32px; box-sizing: border-box; /* clear of the hotbar */
-        /* paper width: 60% of the old full-size scroll, on the left so the bunny stays visible */
-        --pw: min(calc((100vh - 210px) / 1.6 * 0.6), 264px, calc(100vw - 90px));
+        /* The pictures are src/assets/ui/scroll-paper.png (65 x 104) and scroll-rod.png (14 x 6).
+           --s: one picture pixel on screen: 4 screen pixels, fewer if the screen is small.
+           --pw: the paper's width. The scroll sits on the left so the bunny stays visible. */
+        --s: max(1px, min(calc((100vh - 210px) * 0.6 / 104), 4px, calc((100vw - 90px) / 65)));
+        --pw: calc(65 * var(--s));
+      }
+      /* Whole screen pixels per picture pixel keep the pixel art crisp (browsers that can round) */
+      @supports (width: round(down, 10px, 1px)) {
+        #scroll-overlay { --s: max(1px, round(down, min(calc((100vh - 210px) * 0.6 / 104), 4px, calc((100vw - 90px) / 65)), 1px)); }
       }
       #scroll-overlay[hidden] { display: none; }
       #scroll-overlay.drawing { pointer-events: auto; background: radial-gradient(ellipse at center, rgba(40, 0, 0, 0.1), rgba(10, 4, 4, 0.45)); }
@@ -318,23 +325,18 @@
       #scroll-overlay.result .scroll { animation: scroll-out 0.3s ease-in 1s forwards; }
       @keyframes scroll-in { from { opacity: 0; transform: scaleY(0.6); } }
       @keyframes scroll-out { to { opacity: 0; transform: translateY(8px) scale(0.97); } }
+      /* scroll-rod.png: the 6 px knobs at both ends stay as drawn, the 2 px middle stretches */
       .scroll-rod {
-        position: relative; width: calc(var(--pw) + 14px); height: 14px; border-radius: 7px; z-index: 1;
-        background: linear-gradient(#a8743e, #6b4321 55%, #4a2c14); box-shadow: 0 3px 6px rgba(0, 0, 0, 0.45);
+        position: relative; z-index: 1; box-sizing: border-box;
+        width: calc(var(--pw) + 8 * var(--s)); height: calc(6 * var(--s));
+        border-style: solid; border-width: 0 calc(6 * var(--s));
+        border-image: var(--scroll-rod) 0 6 fill stretch;
+        image-rendering: pixelated; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.45));
       }
-      .scroll-rod::before, .scroll-rod::after {
-        content: ""; position: absolute; top: -4px; width: 20px; height: 20px; border-radius: 50%;
-        background: radial-gradient(circle at 35% 35%, #c9965a, #6b4321 60%, #3a220e); border: 2px solid #2a170a;
-      }
-      .scroll-rod::before { left: -12px; }
-      .scroll-rod::after { right: -12px; }
       .scroll-paper {
-        position: relative; width: var(--pw); height: calc(var(--pw) * 1.6); margin: -3px 0; cursor: crosshair;
-        background:
-          radial-gradient(ellipse at 30% 20%, rgba(255, 255, 240, 0.55), transparent 60%),
-          radial-gradient(ellipse at 70% 85%, rgba(150, 100, 40, 0.18), transparent 55%),
-          linear-gradient(90deg, #d9c08a, #f1e2b8 12%, #f6ead0 50%, #f1e2b8 88%, #d9c08a);
-        box-shadow: inset 0 0 16px rgba(120, 80, 30, 0.45), 0 4px 16px rgba(0, 0, 0, 0.5);
+        position: relative; width: var(--pw); height: calc(104 * var(--s)); margin: calc(-1 * var(--s)) 0; cursor: crosshair;
+        background: var(--scroll-paper) 0 0 / 100% 100% no-repeat; image-rendering: pixelated;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
       }
       .scroll-paper canvas { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
       .scroll-labels { position: absolute; inset: 0; pointer-events: none; }
@@ -344,6 +346,13 @@
         animation: toast-in 0.2s ease-out;
       }
       .scroll-rune.unknown { background: #8a2a2a; }
+      /* Read live while drawing (src/ui/scroll.ts readLive): a new reading pops in, the others stay still */
+      .scroll-rune.pop { animation: rune-pop 0.35s ease-out; }
+      #scroll-overlay.drawing .scroll-rune:not(.pop) { animation: none; }
+      @keyframes rune-pop {
+        0% { opacity: 0; transform: translateY(-50%) scale(1.8); }
+        60% { opacity: 1; transform: translateY(-50%) scale(0.9); box-shadow: 0 0 12px 4px rgba(255, 210, 90, 0.8); }
+      }
       .scroll-status {
         min-height: 22px; margin-top: 8px; padding: 0 8px; border-radius: 8px; max-width: calc(var(--pw) + 40px);
         font: 600 15px "BunnyChat", system-ui, sans-serif; color: #f6ead0; text-shadow: 0 1px 3px #000; text-align: center;
@@ -393,6 +402,93 @@
       .help-rune { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 76px; text-align: center; font-size: 12px; }
       .help-rune b { color: #ffd27a; }
       .help-rune span { color: #aaa; font-size: 11px; }
+      /* ---------- Trading (src/ui/actionMenu.ts, src/ui/trade.ts) ---------- */
+      .inv-silver { padding: 5px 8px; border-top: 2px solid var(--ui-line); color: #e8e3c8; font-weight: bold; flex-shrink: 0; }
+      /* Q: the action menu */
+      #action-menu {
+        position: fixed; left: 50%; top: 32%; transform: translate(-50%, -50%); z-index: 16; width: 230px;
+        background: var(--ui-bg); border: 2px solid var(--ui-accent); border-radius: 10px; overflow: hidden;
+        font-size: 13px; user-select: none; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+      }
+      #action-menu[hidden] { display: none; }
+      .am-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 5px 8px; background: #222; border-bottom: 2px solid var(--ui-line); font-weight: bold; }
+      .am-key { font-size: 10px; color: #aaa; padding: 0 4px; border: 1px solid #666; border-radius: 3px; }
+      .am-back { all: unset; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 6px; color: var(--ui-accent); }
+      .am-body { display: flex; flex-direction: column; gap: 4px; padding: 6px; max-height: 260px; overflow-y: auto; }
+      .am-item {
+        display: flex; justify-content: space-between; gap: 8px; font: inherit; text-align: left; cursor: pointer; padding: 7px 9px;
+        color: #eee; background: #2a2836; border: 1px solid var(--ui-line); border-radius: 6px;
+      }
+      .am-item:hover { border-color: var(--ui-accent); background: #3a2c38; }
+      .am-dist { color: #999; font-size: 11px; }
+      .am-note { padding: 6px 4px; color: #aaa; font-size: 12px; }
+      /* The request popup at the top of the screen */
+      #trade-popup {
+        position: fixed; top: 60px; left: 50%; transform: translateX(-50%); z-index: 9;
+        display: flex; align-items: center; gap: 14px; padding: 9px 14px; max-width: calc(100vw - 32px); box-sizing: border-box;
+        background: rgba(20, 20, 28, 0.94); border: 2px solid #e6b94a; border-radius: 10px; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+        font: 600 14px "BunnyChat", system-ui, sans-serif; color: #fff; animation: toast-in 0.25s ease-out;
+      }
+      #trade-popup[hidden] { display: none; }
+      .tr-popup-buttons { display: flex; gap: 8px; flex-shrink: 0; }
+      .tr-yes, .tr-no { font: inherit; font-size: 13px; cursor: pointer; padding: 5px 12px; border-radius: 6px; color: #fff; }
+      .tr-yes { background: #3f9a48; border: 2px solid #5cc466; }
+      .tr-yes:hover { background: #4cb556; }
+      .tr-no { background: #b84040; border: 2px solid #e06060; }
+      .tr-no:hover { background: #cc4c4c; }
+      /* The trade window (layout like the mockup: sides with the portraits, inventories on top, offers below) */
+      #trade {
+        position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 15;
+        width: 700px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); box-sizing: border-box;
+        display: flex; flex-direction: column; background: rgba(22, 21, 30, 0.96); border: 2px solid var(--ui-line);
+        border-radius: 10px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6); font-size: 12px; user-select: none; overflow: hidden;
+      }
+      #trade.moved { transform: none; }
+      #trade[hidden] { display: none; }
+      .tr-bar { position: relative; display: flex; align-items: center; justify-content: center; padding: 6px 34px; background: #222; border-bottom: 2px solid var(--ui-line); cursor: grab; touch-action: none; }
+      .tr-title { font-weight: bold; font-size: 14px; }
+      .tr-close { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); font: inherit; font-size: 13px; cursor: pointer; color: #eee; background: none; border: none; padding: 2px 7px; border-radius: 4px; }
+      .tr-close:hover { background: #b84040; }
+      .tr-grid {
+        flex: 1; min-height: 0; display: grid; grid-template-columns: 112px 1fr 1fr 112px; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        height: 440px; max-height: calc(100vh - 90px);
+      }
+      .tr-side { grid-row: 1 / 3; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; background: rgba(255, 255, 255, 0.03); }
+      .tr-me { grid-column: 1; border-right: 2px solid var(--ui-line); }
+      .tr-them { grid-column: 4; border-left: 2px solid var(--ui-line); }
+      .tr-pic { width: 60px; height: 76px; image-rendering: pixelated; background: #2a2836; border: 2px solid var(--ui-line); border-radius: 6px; padding: 6px 12px; }
+      .tr-name { font-weight: bold; text-align: center; word-break: break-word; }
+      .tr-silver { color: #e8e3c8; text-align: center; }
+      .tr-extra { flex: 1; color: #b9b5cc; font-size: 11px; text-align: center; } /* business sense; room for more later (NPC relations, ...) */
+      .tr-val { flex-shrink: 0; color: #e8e3c8; font-size: 11px; white-space: nowrap; }
+      .tr-worth { padding: 4px 2px 0; border-top: 1px dashed #555; margin-top: 4px; color: #e8e3c8; font-weight: bold; }
+      .tr-panel { display: flex; flex-direction: column; min-height: 0; min-width: 0; padding: 6px; box-sizing: border-box; }
+      .tr-inv[data-side="give"], .tr-offer[data-side="give"] { border-right: 1px solid var(--ui-line); }
+      .tr-offer { border-top: 2px solid var(--ui-line); background: rgba(242, 167, 195, 0.04); }
+      .tr-panel.drop-ok { background: #2f4a33; outline: 2px dashed #7fe07f; outline-offset: -4px; }
+      .tr-head { font-weight: bold; color: #ccc; padding: 0 2px 5px; }
+      .tr-offer .tr-head { color: var(--ui-accent); }
+      .tr-list { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+      .tr-row { display: flex; align-items: center; gap: 6px; padding: 3px 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.03); }
+      .tr-row[draggable="true"] { cursor: grab; }
+      .tr-row:hover { background: rgba(255, 255, 255, 0.09); }
+      .tr-row-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .tr-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+      .tr-icon img { width: 20px; height: 20px; object-fit: contain; image-rendering: pixelated; }
+      .tr-qty { font: inherit; width: 20px; height: 20px; padding: 0; cursor: pointer; color: #eee; background: #3a3848; border: 1px solid #666; border-radius: 4px; }
+      .tr-qty:disabled { opacity: 0.35; cursor: default; }
+      .tr-empty { color: #777; padding: 6px 4px; font-style: italic; }
+      .tr-money { display: flex; align-items: center; gap: 5px; padding: 5px 2px; }
+      .tr-money span:nth-child(2) { flex: 1; }
+      .tr-money input { width: 70px; font: inherit; padding: 3px 5px; color: #eee; background: #2a2836; border: 1px solid var(--ui-line); border-radius: 4px; }
+      .tr-btn { font: inherit; font-size: 13px; font-weight: bold; cursor: pointer; padding: 6px 10px; border-radius: 6px; border: 2px solid; }
+      .tr-offer-btn { color: #1d1b26; background: var(--ui-accent); border-color: var(--ui-accent); }
+      .tr-accept-btn { color: #fff; background: #3f9a48; border-color: #5cc466; }
+      .tr-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+      .tr-btn[hidden] { display: none; }
+      .tr-status { padding: 6px 10px; border-top: 2px solid var(--ui-line); text-align: center; font: 600 13px "BunnyChat", system-ui, sans-serif; color: #f2d36b; }
+      #trade.waiting .tr-status { color: #aaa; }
+      @media (max-width: 620px) { .tr-grid { grid-template-columns: 70px 1fr 1fr 70px; } .tr-pic { width: 40px; height: 51px; padding: 4px; } }
       #lobby { z-index: 10; }
     </style>
   </head>

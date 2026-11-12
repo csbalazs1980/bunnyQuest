@@ -45,6 +45,7 @@ export class Player extends Schema {
   @type("number") maxFatigue = 0;
   @type("number") speed = 200; // movement px/s on normal ground (base + 3% per Agility)
   @type("number") hunger = 50; // 0-50, 50 = full (shared/survival.ts)
+  @type("number") silver = 0; // money, used in trades (shared/trade.ts); new bunnies get STARTING_SILVER
   @type("number") respawnIn = 0; // knocked out: whole seconds until waking up (0 = alive)
   @type("number") protectedFor = 0; // just woke up: whole seconds of protection left (can't hurt / be hurt)
   @type("boolean") casting = false; // the magic scroll is open: everyone sees the eyes glow red
@@ -64,6 +65,7 @@ export class Player extends Schema {
   deadUntil = 0; // knocked out until this time (0 = alive)
   protectedUntil = 0; // can't be hurt and can't attack until this time
   lastCastAt = 0; // last time a scroll was read (rate limit)
+  nextItemNo = 0; // the number in the next new item id ("item15"), set when the first item arrives in a trade
 }
 
 /**

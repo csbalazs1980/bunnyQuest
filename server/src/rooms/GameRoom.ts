@@ -3,6 +3,8 @@ import { ChargedSpell, Enemy, GameState, Item, Player } from "./schema/GameState
 import { Rats } from "../rats.js";
 import { Crusaders } from "../crusaders.js";
 import { Zombies } from "../zombies.js";
+import { Trades } from "../trades.js";
+import { STARTING_SILVER } from "../../../shared/trade.js";
 import { creationProblem, damage, derive, fatigueRegenMs, maxFatigue, maxHp, moveSpeed, STATS, type Stats } from "../../../shared/stats.js";
 import {
   ATTACK_COOLDOWN_MS,
@@ -63,6 +65,7 @@ export class GameRoom extends Room<GameState> {
   private rats!: Rats;
   private crusaders!: Crusaders;
   private zombies!: Zombies;
+  private trades!: Trades;
   /** Bodies of killed enemies (by the enemy's id), which Necromancy can raise until `until`. */
   private corpses = new Map<string, { kind: LivingKind; x: number; y: number; until: number }>();
 
@@ -82,6 +85,18 @@ export class GameRoom extends Room<GameState> {
       (id, z, targetId, attack) => this.zombieStrike(id, z, targetId, attack),
       (id, z) => this.broadcast("fx", { kind: "crumble", id, x: z.x, y: z.y } satisfies CombatFx)
     );
+
+    this.trades = new Trades(this.state.players, {
+      send: (id, type, message) => this.clients.getById(id)?.send(type, message),
+      inventoryChanged: (p) => setEquipment(p, normalize(equipmentOf(p), equipItemsOf(p))), // traded-away items leave their slots
+    });
+
+    // Trading (shared/trade.ts, server/src/trades.ts): request -> yes/no -> offers back and forth -> accept
+    this.onMessage("tradeRequest", (client, msg: { target: string }) => this.trades.request(client.sessionId, msg?.target));
+    this.onMessage("tradeRespond", (client, msg: { accept: boolean }) => this.trades.respond(client.sessionId, !!msg?.accept));
+    this.onMessage("tradeOffer", (client, msg: unknown) => this.trades.offer(client.sessionId, msg));
+    this.onMessage("tradeAccept", (client) => this.trades.accept(client.sessionId));
+    this.onMessage("tradeCancel", (client) => this.trades.cancel(client.sessionId));
 
     this.onMessage("input", (client, input: Input) => {
       this.inputs.set(client.sessionId, {
@@ -236,6 +251,7 @@ export class GameRoom extends Room<GameState> {
     p.speed = moveSpeed(options.stats!);
     p.fatigueRegenEveryMs = fatigueRegenMs(options.stats!);
     p.hunger = HUNGER_START;
+    p.silver = STARTING_SILVER;
     const spawn = world.spawnPoint();
     p.x = spawn.x;
     p.y = spawn.y;
@@ -262,6 +278,7 @@ export class GameRoom extends Room<GameState> {
   }
 
   onLeave(client: Client) {
+    this.trades.left(client.sessionId); // the partner's trade window closes
     this.zombies.disband(client.sessionId); // nobody to serve: they crumble
     this.state.players.delete(client.sessionId);
     this.inputs.delete(client.sessionId);
@@ -325,6 +342,7 @@ export class GameRoom extends Room<GameState> {
       this.state.players.forEach((target, targetId) => {
         if (!this.state.friendlyFire) return; // friendly fire off: bunnies are safe, the caster too
         if (target.deadUntil || target.protectedUntil > now || !inBlast(target.x, target.y, tx, ty)) return;
+        this.trades.attacked(targetId); // being attacked stops any trade at once
         const dmg = damage(power, 0, combatOf(target).armor, false);
         this.broadcast("fx", { kind: "hit", id: targetId, by: casterId, bleed: DAMAGE_ENABLED && dmg > 0 } satisfies CombatFx);
         this.applyDamage(target, targetId, dmg);
@@ -450,6 +468,7 @@ export class GameRoom extends Room<GameState> {
    * luck stops it) if the defender can pay the fatigue; a perfect block calls `onPerfectBlock`.
    */
   private strike(byId: string, by: { x: number; y: number }, attack: number, luck: AttackLuck, targetId: string, target: Player, onPerfectBlock?: () => void) {
+    this.trades.attacked(targetId); // being attacked (hit or blocked) stops any trade at once
     // The bunny's zombies (if it has any) go for the attacker
     this.zombies.provoke(targetId, byId, this.canHarm(targetId, byId) && this.masterOf(byId) !== targetId);
     const t = combatOf(target);
@@ -500,6 +519,7 @@ export class GameRoom extends Room<GameState> {
 
   /** Out of HP (beaten or starved): lies where it fell (x.x) for RESPAWN_DELAY_MS, then respawn(). */
   private knockOut(p: Player, id: string) {
+    this.trades.knockedOut(id);
     p.hp = 0;
     p.deadUntil = Date.now() + RESPAWN_DELAY_MS;
     p.respawnIn = Math.ceil(RESPAWN_DELAY_MS / 1000);
@@ -596,6 +616,7 @@ export class GameRoom extends Room<GameState> {
     }, zombieBodies);
     // Bodies nobody raised fade away
     for (const [id, c] of this.corpses) if (now >= c.until) this.corpses.delete(id);
+    this.trades.update(now); // unanswered requests expire, partners who walked apart stop trading
     this.state.players.forEach((p, id) => {
       this.updateLife(p, id, now);
       this.updateSpells(p, now);

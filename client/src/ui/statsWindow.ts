@@ -4,6 +4,7 @@ import { fmt, STAT_MAX, STATS, type Derived, type Stats } from "../../../shared/
 import { PLAYER_SPEED } from "../../../shared/world";
 import { HUNGER_MAX } from "../../../shared/survival";
 import { spellChargeMs, spellSlotsFor } from "../../../shared/magic";
+import { BUSINESS_MAX, businessSense } from "../../../shared/trade";
 
 import { t, tStat, tStatHelp } from "../i18n";
 
@@ -48,6 +49,7 @@ export class StatsView {
       ${row(t("stats.speed"), `${Math.round((d.speed / PLAYER_SPEED) * 100)}%`, t("stats.speedHint"))}
       ${row(t("stats.spellSlots"), spellSlotsFor(stats.intelligence).join(" "), t("stats.spellSlotsHint"))}
       ${row(t("stats.spellTime"), `${Math.round(spellChargeMs(stats.intelligence) / 1000)} s`, t("stats.spellTimeHint"))}
+      ${row(t("stats.business"), `${businessSense(stats)} / ${BUSINESS_MAX}`, t("trade.senseHint"))}
       <div class="stats-note">${esc(t("stats.note"))}</div>`;
   }
 }

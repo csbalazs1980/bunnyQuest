@@ -6,7 +6,7 @@ import { Hud } from "./ui/hud";
 import { Minimap } from "./ui/minimap";
 import { CharacterCreator } from "./ui/creation";
 import type { Stats } from "../../shared/stats";
-import { itemView } from "../../shared/items";
+import { itemView, type ItemView } from "../../shared/items";
 import { onLanguageChange, t, type TKey } from "./i18n";
 import { createLanguageSelect } from "./ui/language";
 import { OptionsPanel } from "./ui/options";
@@ -14,6 +14,11 @@ import { HelpPanel } from "./ui/help";
 import { ChatBox } from "./ui/chat";
 import { MagicScroll, type CastResult } from "./ui/scroll";
 import { Spellbook } from "./ui/spellbook";
+import { ActionMenu, type Nearby } from "./ui/actionMenu";
+import { TradeUi } from "./ui/trade";
+import { toast } from "./ui/toast";
+import { TRADE_RANGE, type TradeEndReason, type TradeView } from "../../shared/trade";
+import { TILE_SIZE } from "../../shared/combat";
 import { packStrokes } from "../../shared/runes";
 import type { SpellSlot } from "../../shared/magic";
 import { HUNGER_MAX } from "../../shared/survival";
@@ -108,16 +113,6 @@ async function play(joinId: string | null) {
   }
 }
 
-/** A small message at the top of the screen that fades away after `ms`. */
-function toast(text: string, ms: number) {
-  const el = document.createElement("div");
-  el.className = "toast";
-  el.textContent = text;
-  document.body.append(el);
-  setTimeout(() => el.classList.add("gone"), ms);
-  setTimeout(() => el.remove(), ms + 600);
-}
-
 function start(room: Room) {
   $("lobby").style.display = "none";
 
@@ -198,6 +193,39 @@ function start(room: Room) {
   // Chat: T opens a box; Enter shows the text in a speech bubble over our bunny for everyone
   new ChatBox({ onSend: (text) => scene.chat(text), setGameInput });
 
+  // Trading (shared/trade.ts): Q -> "Trade with..." -> the partner accepts -> offers back and forth
+  const itemsOf = (p: any): ItemView[] => Array.from(p.inventory as Iterable<any>).map((it) => itemView(it.id, it.defId, it.quantity));
+  const trade = new TradeUi({
+    me: () => room.sessionId,
+    party: (id) => {
+      const p = room.state.players.get(id);
+      return p && { name: p.name, color: p.color, silver: p.silver, items: itemsOf(p) };
+    },
+    send: (type, message) => room.send(type, message ?? {}),
+    setGameInput,
+  });
+  room.onMessage("trade", (view: TradeView) => trade.setView(view));
+  room.onMessage("tradeEnd", (m: { reason: TradeEndReason; partnerName: string; byMe: boolean }) => trade.ended(m.reason, m.partnerName, m.byMe));
+  room.onMessage("tradeError", (m: { reason: string }) => trade.error(m.reason));
+  new ActionMenu({
+    canOpen: () => {
+      const me = room.state.players.get(room.sessionId);
+      return !!me && !me.respawnIn;
+    },
+    busy: () => trade.busy,
+    nearby: () => {
+      const me = room.state.players.get(room.sessionId);
+      const out: Nearby[] = [];
+      if (!me) return out;
+      room.state.players.forEach((p: any, id: string) => {
+        const d = Math.hypot(p.x - me.x, p.y - me.y);
+        if (id !== room.sessionId && !p.respawnIn && d <= TRADE_RANGE) out.push({ id, name: p.name, tiles: Math.max(1, Math.round(d / TILE_SIZE)) });
+      });
+      return out.sort((a, b) => a.tiles - b.tiles || a.name.localeCompare(b.name));
+    },
+    onTrade: (id) => room.send("tradeRequest", { target: id }),
+  });
+
   // When joining: a short note about friendly fire in this room (shown once, for 5 s)
   let ffNoted = false;
   room.onStateChange((state: any) => {
@@ -207,6 +235,8 @@ function start(room: Room) {
     }
     const me = state.players.get(room.sessionId);
     if (!me) return;
+    trade.refresh(); // inventories and silver in the trade window
+    hud.setSilver(me.silver);
     if (me.respawnIn > 0) scroll.cancel(); // knocked out: the scroll drops
     const spells: { slot: SpellSlot; spell: any; secondsLeft: number }[] = [];
     me.spells?.forEach((c: any, slot: string) => spells.push({ slot: slot as SpellSlot, spell: c.spell, secondsLeft: c.secondsLeft }));

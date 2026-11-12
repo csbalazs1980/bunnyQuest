@@ -27,8 +27,8 @@ export const hu: Dict = {
   "stat.luck": "Szerencse",
   "statHelp.strength": "A támadásra hat",
   "statHelp.agility": "A támadásra, a védekezésre és a mozgási sebességre hat",
-  "statHelp.intelligence": "Erősebbé teszi a varázslataidat, több varázshelyet ad, és tovább tartanak a varázslatok",
-  "statHelp.charm": "Később lesz jelentősége",
+  "statHelp.intelligence": "Erősebbé teszi a varázslataidat, több varázshelyet ad, és tovább tartanak a varázslatok. A Bájjal együtt segít megbecsülni a tárgyak értékét",
+  "statHelp.charm": "Az Intelligenciával együtt ez az üzleti érzéked: mennyire jól becslöd meg a tárgyak értékét kereskedésnél",
   "statHelp.endurance": "Az életerőre, az erőnlétre (fáradtság) és a regenerálódás gyorsaságára hat",
   "statHelp.luck": "Gyakrabban jönnek szerencsés ütések és védések",
 
@@ -37,6 +37,85 @@ export const hu: Dict = {
   "window.inventory": "Tárgyak",
   "window.outfit": "Öltözet",
   "window.spellbook": "Varázskönyv",
+
+  // trading (Q menu, trade window: src/ui/actionMenu.ts, src/ui/trade.ts)
+  "actions.title": "Műveletek",
+  "actions.tradeWith": "Kereskedés vele…",
+  "actions.back": "Vissza",
+  "actions.busy": "Már kereskedsz valakivel.",
+  "actions.nobody": "Nincs nyuszi {n} mezőn belül. Előbb menj közelebb valakihez.",
+  "actions.tiles": "{n} mező",
+  "inv.silverHint": "A pénzed. Kereskedésnél használhatod (Q → Kereskedés vele…).",
+  "trade.title": "Kereskedés: {name}",
+  "trade.close": "Bezárás (a kereskedés megszakad)",
+  "trade.silver": "Ezüst",
+  "trade.yourInventory": "A te tárgyaid",
+  "trade.theirInventory": "Az ő tárgyai",
+  "trade.give": "↓ Odaadod (eladás)",
+  "trade.take": "↓ Megkapod (vétel)",
+  "trade.giveSilver": "Ezüst, amit adsz",
+  "trade.takeSilver": "Ezüst, amit kérsz",
+  "trade.offer": "Ajánlat",
+  "trade.counter": "Ellenajánlat",
+  "trade.accept": "Elfogadom",
+  "trade.acceptChangedHint": "Módosítottad az ajánlatát: küldd vissza Ellenajánlatként, vagy vond vissza a módosításokat, hogy elfogadhasd.",
+  "trade.status.waiting": "Várakozás rá: {name}…",
+  "trade.status.first": "Húzd az alsó mezőkbe, amit eladsz és amit kérsz, aztán nyomd meg az Ajánlat gombot.",
+  "trade.status.changed": "Módosítottad az ajánlatot: az Ellenajánlat gombbal küldheted vissza.",
+  "trade.status.theirOffer": "{name} ajánlatot tett: fogadd el, vagy módosítsd és küldj ellenajánlatot.",
+  "trade.rowHint": "Húzd le (vagy kattints duplán), hogy bekerüljön az ajánlatba",
+  "trade.rowOfferHint": "Húzd vissza (vagy dupla / jobb klikk), hogy kikerüljön",
+  "trade.dropGive": "Ide húzd a tárgyaidat",
+  "trade.dropTake": "Ide húzd az ő tárgyait",
+  "trade.popup.request": "{name} kereskedni szeretne veled.",
+  "trade.popup.accept": "Elfogadom",
+  "trade.popup.reject": "Elutasítom",
+  "trade.popup.waitAnswer": "Várakozás {name} válaszára…",
+  "trade.popup.waitOffer": "Kereskedés vele: {name} – várakozás az ajánlatára…",
+  "trade.popup.cancel": "Mégse",
+  "trade.end.done": "Sikeres kereskedés vele: {name}!",
+  "trade.end.rejected": "{name} most nem akar kereskedni.",
+  "trade.end.cancelled": "{name} megszakította a kereskedést.",
+  "trade.end.tooFar": "Túl messzire kerültetek egymástól: a kereskedés {name} játékossal megszakadt.",
+  "trade.end.attacked": "{name} támadás alá került: a kereskedés megszakadt.",
+  "trade.end.attackedMe": "Megtámadtak: a kereskedés {name} játékossal megszakadt.",
+  "trade.end.knockedOut": "{name} kiütve: a kereskedés megszakadt.",
+  "trade.end.knockedOutMe": "Kiütöttek: a kereskedés {name} játékossal megszakadt.",
+  "trade.end.left": "{name} kilépett a játékból: a kereskedés megszakadt.",
+  "trade.end.expired": "{name} nem válaszolt a kereskedési ajánlatra.",
+  "trade.end.busy": "{name} épp mással kereskedik.",
+  "trade.end.unavailable": "{name} most nem tud kereskedni.",
+  "trade.error.changed": "A tárgyai vagy az ezüstje megváltozott az ajánlat óta, így nem fogadható el. Küldj inkább ellenajánlatot.",
+  "trade.error.invalid": "Ez az ajánlat nem lehetséges (hiányzik néhány tárgy vagy ezüst).",
+  "trade.giveWorth": "Amit adsz: {range} 🪙 értékű",
+  "trade.takeWorth": "Amit kérsz: {range} 🪙 értékű",
+  "trade.worthHint": "Szerinted ennyit ér összesen, az ezüsttel együtt. Minél jobb az üzleti érzéked ({n}/{max}), annál pontosabban becsülsz.",
+  "trade.valueHint": "Szerinted ennyit ér (üzleti érzék {n}/{max})",
+  "trade.valueHintEach": "Szerinted ennyit ér egy darab (üzleti érzék {n}/{max})",
+  "trade.sense": "Üzleti érzék",
+  "trade.senseHint": "Báj + Intelligencia. Minél magasabb, annál jobban meg tudod becsülni, mennyit érnek a tárgyak: 20-nál pontosan tudod, 2-nél fogalmad sincs (és akár teljesen tévedhetsz).",
+  "stats.business": "Üzleti érzék",
+  "help.trade.title": "Kereskedés",
+  "help.trade.body": `## Kereskedés indítása
+Menj oda egy másik nyuszihoz (legfeljebb **7 mezőre**), nyomd meg a [Q] gombot, válaszd a **Kereskedés vele…** pontot, és kattints a nevére. Ő egy felugró ablakot kap a képernyő tetején, amit **elfogadhat** vagy **elutasíthat**.
+
+## Ajánlatok
+- A kereskedési ablakban mindkettőtöket látod az ezüstötökkel együtt: bal oldalon a te tárgyaidat, jobb oldalon az övéit.
+- Húzd le a saját tárgyaidat az **Odaadod** mezőbe, az övéit a **Megkapod** mezőbe (vagy kattints rájuk duplán). Egy sort visszahúzva, dupla vagy jobb klikkel vehetsz ki; a − és + gombbal azt állíthatod, hány darab menjen egy halomból.
+- Írd be, mennyi ezüstöt adsz, és mennyit kérsz.
+- Aki a kereskedést indította, az tesz először ajánlatot. Utána a másik nyuszi jön: **elfogadja** az ajánlatot úgy, ahogy van, vagy módosítja és **ellenajánlatot** küld. Felváltva jöttök, amíg valamelyikőtök el nem fogadja.
+- Az elcserélt tárgyak a kezedből és az öltözetedből is eltűnnek.
+
+## Mikor szakad meg a kereskedés?
+- Valamelyikőtök bezárja az ablakot (✕).
+- 7 mezőnél messzebbre kerültök egymástól.
+- Valamelyikőtöket megtámadják vagy kiütik, vagy kilép a játékból.
+- A megválaszolatlan kérés 30 másodperc után lejár.
+
+## Mennyit ér?
+Minden sorban azt látod, *szerinted* mennyit ér egy darab, például 20–40🪙, a két alsó mező alatt pedig azt, hogy szerinted összesen mennyit ér, amit adsz és amit kérsz (az ezüsttel együtt). Hogy mennyire jól becsülsz, az az **üzleti érzékeden = Báj + Intelligencia** múlik: 2-nél fogalmad sincs, és a becslésed akár teljesen mellé is mehet, 10 körül már megkülönbözteted a kincset a kacattól, és minél közelebb vagy a 20-hoz, annál pontosabb vagy. A becsléseid a kereskedés elején születnek, és a végéig nem változnak.
+
+Minden új nyuszi **100 ezüsttel** kezd; a tiédet a tárgylista alatt látod.`,
   "window.stats": "Tulajdonságok",
 
   "inv.filter": "szűrés…",
@@ -159,6 +238,7 @@ export const hu: Dict = {
   "rune.mor.meaning": "halál",
   "magic.scrollHint": "Rajzold a rúnákat fentről lefelé · engedd el az F-et a varázsláshoz · jobb klikk: tekercs törlése",
   "magic.reading": "A rúnák olvasása…",
+  "magic.ready": "{spell}! Engedd el az F-et a varázsláshoz",
   "magic.unknown": "?",
   "magic.charged": "{spell}! Nyomd meg: {key}",
   "magic.fail.empty": "A tekercs üres",
@@ -229,6 +309,9 @@ A zöld éhségsáv lassan fogy. A jóllakott nyuszi idővel gyógyul, a nagyon 
 
 ## Varázslás
 Tartsd lenyomva az [F] gombot, és kinyílik a varázstekercsed: rúnákat rajzolhatsz rá. A feltöltött varázslatok az [X] [C] [V] [B] helyekre kerülnek. Lásd a **Varázslás** témát. Az [N] gombbal egy mezőre küldheted az élőhalott seregedet (amit nekromanciával támasztottál fel).
+
+## Kereskedés
+Nyomd meg a [Q] gombot, válaszd a **Kereskedés vele…** pontot, és kattints egy nyuszi nevére (lásd a **Kereskedés** témát).
 
 ## Csevegés
 Nyomd meg a [T] gombot, írd be az üzenetet, és nyomj [Enter]-t. Egy buborékban jelenik meg a nyuszid felett, mindenki láthatja. Az [Esc] megszakítja.`,

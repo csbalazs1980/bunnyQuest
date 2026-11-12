@@ -2,9 +2,16 @@
 // F to cast. Only the caster sees the scroll (other players see glowing eyes, src/magicFx.ts).
 // The drawing is sent to the server, which reads it (shared/runes.ts) and answers with what it saw;
 // the scroll then shows that for a moment: each rune's name next to it (or "?"), and the outcome.
+// While drawing, the scroll already reads each rune as you finish it (same code as the server, so it
+// agrees with it): a recognized rune turns gold and gets its name, a rune you've moved on from that
+// can't be read gets a "?", and once the runes make a spell the scroll says so. Only the server's
+// reading counts for the cast itself.
+// Its pictures are src/assets/ui/scroll-paper.png and scroll-rod.png (sizes: see the README there).
 import { onLanguageChange, t, type TKey } from "../i18n";
-import { MAX_POINTS, MAX_STROKES, SCROLL_ASPECT, type RuneId, type Stroke } from "../../../shared/runes";
-import type { CastFail, SpellId } from "../../../shared/magic";
+import { groupRunes, MAX_POINTS, MAX_STROKES, readRune, SCROLL_ASPECT, type RuneId, type Stroke } from "../../../shared/runes";
+import { spellOf, type CastFail, type SpellId } from "../../../shared/magic";
+import paperUrl from "../assets/ui/scroll-paper.png";
+import rodUrl from "../assets/ui/scroll-rod.png";
 
 /** The server's answer to a cast (GameRoom.readScroll). */
 export interface CastResult {
@@ -30,6 +37,16 @@ const ANSWER_TIMEOUT_MS = 2000; // give up waiting for the server
 
 type State = "closed" | "drawing" | "reading" | "result";
 
+/** One rune as read live while drawing. */
+interface LiveRune {
+  strokes: Stroke[];
+  rune: RuneId | null;
+  /** Still being drawn (its last stroke is the latest one): an unreadable one isn't marked yet. */
+  open: boolean;
+  top: number;
+  bottom: number;
+}
+
 export class MagicScroll {
   private overlay: HTMLDivElement;
   private paper: HTMLDivElement;
@@ -42,12 +59,18 @@ export class MagicScroll {
   private current: Stroke | null = null;
   private points = 0;
   private state: State = "closed";
+  private live: LiveRune[] = [];
+  /** Strokes of the runes read so far: drawn in gold. */
+  private goldStrokes = new Set<Stroke>();
   private timer = 0;
 
   constructor(private opts: ScrollOptions) {
     this.overlay = document.createElement("div");
     this.overlay.id = "scroll-overlay";
     this.overlay.hidden = true;
+    // The pictures, for the CSS in index.html (Vite gives each file its final URL)
+    this.overlay.style.setProperty("--scroll-paper", `url("${paperUrl}")`);
+    this.overlay.style.setProperty("--scroll-rod", `url("${rodUrl}")`);
     this.overlay.innerHTML = `
       <div class="scroll">
         <div class="scroll-rod"></div>
@@ -95,7 +118,10 @@ export class MagicScroll {
     this.state = "drawing";
     this.overlay.hidden = false;
     this.overlay.className = "drawing";
+    this.live = [];
+    this.goldStrokes.clear();
     this.labels.replaceChildren();
+    this.status.className = "scroll-status";
     this.status.textContent = "";
     this.fit();
     this.opts.onOpen();
@@ -169,7 +195,7 @@ export class MagicScroll {
         this.strokes = [];
         this.current = null;
         this.points = 0;
-        return this.redraw();
+        return this.readLive();
       }
       if (e.button !== 0 || this.strokes.length >= MAX_STROKES) return;
       c.setPointerCapture(e.pointerId);
@@ -199,8 +225,56 @@ export class MagicScroll {
 
   private endStroke() {
     if (!this.current) return;
-    if (this.current.length < 2) this.strokes.pop(); // a single tap: nothing to read
+    const last = this.current;
+    if (last.length < 2) this.strokes.pop(); // a single tap: nothing to read
     this.current = null;
+    if (this.state === "drawing") this.readLive(last.length < 2 ? undefined : last);
+  }
+
+  /**
+   * Reads the drawing so far, rune by rune (after every stroke), and shows it: the name of each
+   * recognized rune (popping in when it's new), "?" on runes you've moved on from that can't be read,
+   * and the spell once the runes make one. `latest`: the stroke just drawn (its rune may be unfinished).
+   */
+  private readLive(latest?: Stroke) {
+    const before = new Map(this.live.map((r) => [this.liveKey(r), r]));
+    this.live = groupRunes(this.strokes).map((strokes) => {
+      const ys = strokes.flatMap((st) => st.map((p) => p.y));
+      return {
+        strokes,
+        rune: readRune(strokes).rune,
+        open: latest !== undefined && strokes.includes(latest),
+        top: Math.min(...ys),
+        bottom: Math.max(...ys),
+      };
+    });
+
+    this.goldStrokes = new Set(this.live.filter((r) => r.rune).flatMap((r) => r.strokes));
+    const w = this.canvas.clientWidth;
+    this.labels.replaceChildren(
+      ...this.live
+        .filter((r) => r.rune || !r.open) // an unfinished rune gets no "?" yet
+        .map((r) => {
+          const label = document.createElement("div");
+          label.className = r.rune ? "scroll-rune" : "scroll-rune unknown";
+          // Pop only when this rune's reading is new (not every time anything is redrawn)
+          const old = before.get(this.liveKey(r));
+          if (!old || (old.open && !old.rune)) label.classList.add("pop");
+          label.textContent = r.rune ? t(`rune.${r.rune}` as TKey) : t("magic.unknown");
+          label.style.top = `${((r.top + r.bottom) / 2) * w}px`;
+          return label;
+        })
+    );
+
+    const spell = this.live.length ? spellOf(this.live.map((r) => r.rune)) : null;
+    this.status.className = spell ? "scroll-status ok" : "scroll-status";
+    this.status.textContent = spell ? t("magic.ready", { spell: t(`spell.${spell}` as TKey) }) : "";
+    this.redraw();
+  }
+
+  /** Identifies a live rune between readings: what it reads as, and where it starts. */
+  private liveKey(r: LiveRune) {
+    return `${r.rune ?? "?"}@${r.strokes[0] ? this.strokes.indexOf(r.strokes[0]) : -1}`;
   }
 
   /** Sizes the canvas to the paper (sharp on high-DPI screens) and redraws the ink. */
@@ -218,15 +292,15 @@ export class MagicScroll {
     const w = canvas.width;
     ctx.clearRect(0, 0, w, canvas.height);
     ctx.lineCap = ctx.lineJoin = "round";
-    // Two passes: a soft glow, then the red ink on top
+    // Two passes: a soft glow, then the ink on top: red, or gold for runes already read (readLive)
     for (const pass of [
-      { width: 0.03, color: "rgba(255, 70, 40, 0.18)" },
-      { width: 0.012, color: "#b3121c" },
+      { width: 0.03, color: "rgba(255, 70, 40, 0.18)", gold: "rgba(255, 200, 60, 0.45)" },
+      { width: 0.012, color: "#b3121c", gold: "#c98a12" },
     ]) {
       ctx.lineWidth = pass.width * w;
-      ctx.strokeStyle = pass.color;
       for (const s of this.strokes) {
         if (!s.length) continue;
+        ctx.strokeStyle = this.goldStrokes.has(s) ? pass.gold : pass.color;
         ctx.beginPath();
         ctx.moveTo(s[0].x * w, s[0].y * w);
         for (const p of s.slice(1)) ctx.lineTo(p.x * w, p.y * w);

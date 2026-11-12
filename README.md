@@ -92,7 +92,7 @@ Strength, Agility, Intelligence, Charm, Endurance, Luck. The game can only start
 
 Example: attack 8 against defense 5 and armor 2 → 1 damage if blocked, 6 if not.
 The weapon values come from what is in your hands (the best attack and the best defense of the two hands;
-empty hands attack with 1). The Sword is 5 attack / 4 defense. Intelligence powers magic: spell damage, number of spell slots and how long spells last (see **Magic** below); Charm does nothing yet.
+empty hands attack with 1). The Sword is 5 attack / 4 defense. Intelligence powers magic: spell damage, number of spell slots and how long spells last (see **Magic** below). Charm + Intelligence is your **business sense**: how well you guess what items are worth (see **Trading**).
 
 The **Stats** window (hotkey **K**, starts minimized) shows your stats, HP, fatigue, speed and the current
 Attack / Defense / Armor, which change as you equip things. Players only see plain summaries of what each
@@ -491,6 +491,68 @@ health_potion: { name: "Health potion", type: "potion", icon: "🧪", stackable:
   up without blurring). If the file has a different name, point to it with `image`, e.g.
   `old_boots: { ..., image: "bootIcon" }`. Items without a picture show their `icon` emoji. New files are
   picked up by Vite automatically (restart `npm run dev` if one doesn't show up).
+
+## Trading
+Every new bunny starts with **100 silver** (`STARTING_SILVER`), shown under the inventory list and in the trade window.
+
+1. Walk up to another bunny (at most **7 tiles** away, `TRADE_RANGE_TILES`), press **Q** and pick
+   **Trade with…**: the list shows the bunnies close enough, nearest first. (The Q menu is the place for
+   more actions later; NPCs will appear in the same list.)
+2. The other bunny gets a popup at the top of the screen with a green **Accept** and a red **Reject** button.
+   The initiator sees "Waiting for … to answer" with a Cancel button. Unanswered requests expire after 30 s.
+3. Accepted: the initiator's **trade window** opens (layout like the mockup): portraits, names and silver on the
+   two sides, your inventory and theirs on top, and below them **You give (sell)** and **You get (buy)**. Drag
+   items down (or double-click them), drag them back up / double-click / right-click to take them out, − / +
+   for part of a stack, and type the silver you give and want. **Offer** sends it. In the first round there is
+   no Accept button (nothing to accept yet).
+4. Now the partner's window pops up with the offer in it. From here on each turn has two choices: **Accept**
+   the offer as it is, or change it and send a **Counter-offer**. Changing anything disables Accept until it
+   is sent back (or undone). While it isn't your turn the window is read-only ("Waiting for …").
+5. On Accept the server checks both sides still own everything, then moves the items and silver. Stackable
+   items join an existing stack, others get fresh ids; traded-away items also leave hands and outfit slots.
+
+### Item values and business sense
+Every item is worth some silver (`server/src/itemValues.ts`; only the server has the real numbers, and a
+new item in `ITEM_DEFS` without a value there is a compile error). Bunnies only *guess* values: every row in
+the trade window shows a range per piece (e.g. `20–40🪙`), and under each offer box there is the guessed
+total of what you offer and what you ask for, silver included. The guesses are rolled once per bunny when
+a trade starts and stay the same until it ends.
+
+How good the guess is depends on **business sense = Charm + Intelligence** (shown in the Stats window and in
+the trade window). The code is `guessOdds()`, `guessBands()` and `guessValue()` in `shared/trade.ts`:
+
+1. First the bunny's **hunch** is rolled: it **undervalues** the item (both ends of the range below the real
+   value), **overvalues** it (both ends above), or makes a **fair guess** (low end below, high end above). At
+   sense 2 each is 1/3 likely; the two wrong hunches fade out linearly until sense 10, from where every guess
+   is fair.
+2. Then the ends are the real value times factors from two bands: the **low band** (below the real value)
+   and the **high band** (above it, rolled evenly on a log scale). A fair guess takes one factor from each;
+   an undervalued one both from the low band, an overvalued one both from the high band. The smaller number
+   is always shown first.
+
+| Sense | Under / over / fair | Low band | High band | A 30-silver sword looks like (sample rolls) |
+|---|---|---|---|---|
+| 2 | 33% / 33% / 33% | 0 – 1 | 1 – 40 | 10–26, 108–641, 209–444, 10–54, 43–441, 1112–1142 |
+| 6 | 17% / 17% / 67% | 0.1 – 0.9 | 1.22 – 10 | 3–6, 73–125, 15–195, 14–41, 23–270 |
+| 8 | 8% / 8% / 83% | 0.15 – 0.85 | 1.36 – 5 | |
+| 10 | always fair | 0.2 – 0.8 | 1.5 – 2.5 | 12–61, 21–70, 8–61, 21–49 |
+| 16 | always fair | 0.68 – 0.92 | 1.18 – 1.44 | 24–37, 21–42, 22–37 |
+| 19 | always fair | 0.92 – 0.98 | 1.04 – 1.10 | ~28–32 |
+| 20 | always fair | 1 | 1 | exactly 30 |
+
+The band edges slide smoothly between the anchors (2, 10, 20): the low band linearly, the high band
+geometrically. Note: with 20 creation points over six stats (each at least 1), Charm + Intelligence is at
+most **16** for now; 17–20 needs stats that can grow later.
+
+The trade is **cancelled** when either bunny closes the window (✕), they get more than 7 tiles apart, either
+of them is **attacked** (any hit or blocked hit, from a bunny, an animal, a crusader, a zombie or a fireball),
+is knocked out, or leaves the game. Both get a short note saying why.
+
+Code: rules and message shapes in `shared/trade.ts`; the server side in `server/src/trades.ts` (wired up in
+`GameRoom`: messages `tradeRequest`, `tradeRespond`, `tradeOffer`, `tradeAccept`, `tradeCancel`; the server
+answers with `trade` (the trade from that player's point of view), `tradeEnd` and `tradeError`); the client in
+`client/src/ui/actionMenu.ts` (Q menu) and `client/src/ui/trade.ts` (popup + window). The side columns have
+an empty `.tr-extra` box reserved for NPC relations and the like.
 
 ## Playing with friends (free Cloudflare tunnel)
 One-time setup: install `cloudflared` (Windows: `winget install --id Cloudflare.cloudflared`).

@@ -30,8 +30,8 @@ export const ro: Dict = {
   "stat.luck": "Noroc",
   "statHelp.strength": "Influențează atacul",
   "statHelp.agility": "Influențează atacul, apărarea și viteza de deplasare",
-  "statHelp.intelligence": "Îți face vrăjile mai puternice, îți dă mai multe locuri pentru vrăji și le face să dureze mai mult",
-  "statHelp.charm": "Va conta mai târziu",
+  "statHelp.intelligence": "Îți face vrăjile mai puternice, îți dă mai multe locuri pentru vrăji și le face să dureze mai mult. Împreună cu Farmecul te ajută să ghicești valoarea obiectelor",
+  "statHelp.charm": "Împreună cu Inteligența formează simțul afacerilor: cât de bine ghicești valoarea obiectelor la negoț",
   "statHelp.endurance": "Influențează viața, energia (oboseala) și cât de repede îți revii",
   "statHelp.luck": "Loviturile norocoase și parările norocoase apar mai des",
 
@@ -42,6 +42,85 @@ export const ro: Dict = {
   "window.outfit": "Echipament",
   "window.stats": "Atribute",
   "window.spellbook": "Carte de vrăji",
+
+  // trading (Q menu, trade window: src/ui/actionMenu.ts, src/ui/trade.ts)
+  "actions.title": "Acțiuni",
+  "actions.tradeWith": "Fă negoț cu…",
+  "actions.back": "Înapoi",
+  "actions.busy": "Faci deja negoț.",
+  "actions.nobody": "Niciun iepuraș la cel mult {n} pătrățele. Apropie-te mai întâi de cineva.",
+  "actions.tiles": "{n} pătrățele",
+  "inv.silverHint": "Banii tăi. Îi poți folosi la negoț (Q → Fă negoț cu…).",
+  "trade.title": "Negoț cu {name}",
+  "trade.close": "Închide (anulează negoțul)",
+  "trade.silver": "Argint",
+  "trade.yourInventory": "Inventarul tău",
+  "trade.theirInventory": "Inventarul lui",
+  "trade.give": "↓ Dai (vinzi)",
+  "trade.take": "↓ Primești (cumperi)",
+  "trade.giveSilver": "Argint pe care îl dai",
+  "trade.takeSilver": "Argint pe care îl ceri",
+  "trade.offer": "Oferă",
+  "trade.counter": "Contraofertă",
+  "trade.accept": "Acceptă",
+  "trade.acceptChangedHint": "Ai schimbat oferta lui: trimite-o înapoi cu Contraofertă sau anulează schimbările ca s-o poți accepta.",
+  "trade.status.waiting": "Se așteaptă după {name}…",
+  "trade.status.first": "Trage în casetele de jos ce vinzi și ce vrei, apoi apasă Oferă.",
+  "trade.status.changed": "Ai schimbat oferta: apasă Contraofertă ca s-o trimiți înapoi.",
+  "trade.status.theirOffer": "{name} a făcut o ofertă: accept-o sau schimb-o și trimite o contraofertă.",
+  "trade.rowHint": "Trage-l în jos (sau dublu-clic) ca să-l pui în ofertă",
+  "trade.rowOfferHint": "Trage-l înapoi (sau dublu-clic / clic dreapta) ca să-l scoți",
+  "trade.dropGive": "Trage aici obiectele tale",
+  "trade.dropTake": "Trage aici obiectele lui",
+  "trade.popup.request": "{name} ar vrea să facă negoț cu tine.",
+  "trade.popup.accept": "Acceptă",
+  "trade.popup.reject": "Refuză",
+  "trade.popup.waitAnswer": "Se așteaptă răspunsul lui {name}…",
+  "trade.popup.waitOffer": "Negoț cu {name}: se așteaptă oferta…",
+  "trade.popup.cancel": "Anulează",
+  "trade.end.done": "Negoțul cu {name} s-a încheiat!",
+  "trade.end.rejected": "{name} nu vrea să facă negoț acum.",
+  "trade.end.cancelled": "{name} a anulat negoțul.",
+  "trade.end.tooFar": "V-ați îndepărtat prea mult: negoțul cu {name} s-a anulat.",
+  "trade.end.attacked": "{name} a fost atacat: negoțul s-a anulat.",
+  "trade.end.attackedMe": "Ai fost atacat: negoțul cu {name} s-a anulat.",
+  "trade.end.knockedOut": "{name} a fost doborât: negoțul s-a anulat.",
+  "trade.end.knockedOutMe": "Ai fost doborât: negoțul cu {name} s-a anulat.",
+  "trade.end.left": "{name} a ieșit din joc: negoțul s-a anulat.",
+  "trade.end.expired": "{name} n-a răspuns la cererea de negoț.",
+  "trade.end.busy": "{name} face negoț cu altcineva acum.",
+  "trade.end.unavailable": "{name} nu poate face negoț acum.",
+  "trade.error.changed": "Obiectele sau argintul lui s-au schimbat de la ofertă, deci nu poate fi acceptată. Trimite o contraofertă.",
+  "trade.error.invalid": "Oferta nu e posibilă (lipsesc unele obiecte sau argint).",
+  "trade.giveWorth": "Oferi: în valoare de {range} 🪙",
+  "trade.takeWorth": "Ceri: în valoare de {range} 🪙",
+  "trade.worthHint": "Cât crezi că valorează totul, cu argint cu tot. Ghicești mai bine cu mai mult simț al afacerilor ({n}/{max}).",
+  "trade.valueHint": "Cât crezi că valorează (simț al afacerilor {n}/{max})",
+  "trade.valueHintEach": "Cât crezi că valorează o bucată (simț al afacerilor {n}/{max})",
+  "trade.sense": "Simț al afacerilor",
+  "trade.senseHint": "Farmec + Inteligență. Cu cât e mai mare, cu atât ghicești mai bine cât valorează obiectele: la 20 știi exact, la 2 habar n-ai (și poți greși complet).",
+  "stats.business": "Simț al afacerilor",
+  "help.trade.title": "Negoț",
+  "help.trade.body": `## Cum începi un negoț
+Mergi lângă alt iepuraș (la cel mult **7 pătrățele**), apasă [Q], alege **Fă negoț cu…** și dă clic pe numele lui. El primește o fereastră în partea de sus a ecranului și o poate **accepta** sau **refuza**.
+
+## Oferte
+- Fereastra de negoț vă arată pe amândoi, cu argintul fiecăruia: inventarul tău în stânga, al lui în dreapta.
+- Trage obiectele tale în jos, în **Dai**, și pe ale lui în **Primești** (sau dă dublu-clic pe ele). Trage un rând înapoi sus sau dă dublu-clic / clic dreapta pe el ca să-l scoți; − și + schimbă câte bucăți dintr-o grămadă.
+- Scrie cât argint dai și cât vrei.
+- Cine a început negoțul face prima ofertă. Apoi e rândul celuilalt iepuraș: **acceptă** oferta așa cum e sau o schimbă și trimite o **contraofertă**. Vă luați pe rând până când unul dintre voi acceptă.
+- Obiectele pe care le dai pleacă și din mâinile tale și de pe tine.
+
+## Când se anulează negoțul
+- Unul dintre voi închide fereastra (✕).
+- Vă îndepărtați la mai mult de 7 pătrățele.
+- Unul dintre voi e atacat, doborât sau iese din joc.
+- O cerere fără răspuns expiră după 30 de secunde.
+
+## Cât valorează?
+Fiecare rând arată cât *crezi tu* că valorează o bucată, de exemplu 20–40🪙, iar sub cele două casete de jos vezi valoarea totală ghicită a ce oferi și a ce ceri (cu argint cu tot). Cât de bine ghicești depinde de **simțul afacerilor = Farmec + Inteligență**: la 2 habar n-ai și estimarea poate fi complet greșită, pe la 10 deosebești comoara de vechituri, iar cu cât te apropii de 20, cu atât ești mai exact. Estimările se fac când începe negoțul și rămân la fel până la final.
+
+Fiecare iepuraș nou începe cu **100 de arginți**; pe ai tăi îi vezi sub lista din inventar.`,
 
   // inventory
   "inv.filter": "filtru…",
@@ -169,6 +248,7 @@ export const ro: Dict = {
   "rune.mor.meaning": "moarte",
   "magic.scrollHint": "Desenează runele de sus în jos · eliberează F pentru a vrăji · clic dreapta șterge pergamentul",
   "magic.reading": "Se citesc runele…",
+  "magic.ready": "{spell}! Eliberează F pentru a vrăji",
   "magic.unknown": "?",
   "magic.charged": "{spell}! Apasă {key} pentru a o folosi",
   "magic.fail.empty": "Pergamentul e gol",
@@ -240,6 +320,9 @@ Bara verde a foamei se golește încet. Un iepuraș bine hrănit se vindecă în
 
 ## Magie
 Ține apăsat [F] ca să deschizi pergamentul magic și să desenezi rune pe el; vrăjile încărcate apar în locurile [X] [C] [V] [B]. Vezi secțiunea **Magie**. Apasă [N] ca să-ți trimiți armata de strigoi (ridicată cu Necromanție) pe o pătrățică.
+
+## Negoț
+Apasă [Q], alege **Fă negoț cu…** și dă clic pe numele unui iepuraș (vezi subiectul **Negoț**).
 
 ## Chat
 Apasă [T], scrie mesajul și apasă [Enter]. Apare într-un balon deasupra iepurașului tău, ca să-l vadă toată lumea. [Esc] anulează.`,

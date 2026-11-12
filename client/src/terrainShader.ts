@@ -22,7 +22,9 @@ import Phaser from "phaser";
 export const TERRAIN_BLEND = {
   wobble: 0.3, // how far borders wander from the tile grid (about this share of a tile at most)
   waves: 1.6, // how wavy: bumps per tile along a border
-  soft: 0.1, // how soft the edge is (0 = hard pixel edge; 0.1 = a few pixels of blending)
+  roughness: 0.12, // fine, ragged noise on top of the waves (0 = smooth curves)
+  grain: 7, // how fine that roughness is: bumps per tile
+  soft: 0.06, // how soft the edge is (0 = hard pixel edge; 0.1 = a few pixels of blending)
   /**
    * Terrains (by name, see map.json) that hold their ground against their neighbours: they keep
    * more of their tiles, so e.g. the houses of a small town aren't clipped. 0 = normal, up to ~0.5.
@@ -64,6 +66,8 @@ uniform float uAtlasCount;
 uniform float uTileSize;
 uniform float uWobble;
 uniform float uWaves;
+uniform float uRoughness;
+uniform float uGrain;
 uniform float uSoft;
 varying vec2 vTile;
 
@@ -83,6 +87,11 @@ float noise(vec2 p) {
 float wobble(vec2 p, float terrain) {
   vec2 q = p * uWaves + vec2(terrain * 37.13, terrain * 11.71);
   return (noise(q) * 0.65 + noise(q * 2.13 + 5.2) * 0.35) * 2.0 - 1.0;
+}
+// Fine ragged noise, about -1..1: small bumps and nicks along the borders
+float rough(vec2 p, float terrain) {
+  vec2 q = p * uGrain + vec2(terrain * 13.37, terrain * 29.03);
+  return (noise(q) * 0.6 + noise(q * 2.37 + 9.1) * 0.4) * 2.0 - 1.0;
 }
 vec4 cellAt(vec2 t) {
   t = clamp(t, vec2(0.0), uMapSize - 1.0);
@@ -131,7 +140,8 @@ void main () {
         if (rank[j] > rank[k]) speaks = false;
       }
     }
-    score[k] = speaks ? presence + cell[k].b / 255.0 + uWobble * wobble(p, cell[k].g) : -10.0;
+    score[k] = speaks ? presence + cell[k].b / 255.0 + uWobble * wobble(p, cell[k].g)
+                       + uRoughness * rough(p, cell[k].g) : -10.0;
     best = max(best, score[k]);
   }
 
@@ -180,6 +190,8 @@ export function createSmoothTerrain(scene: Phaser.Scene, o: SmoothTerrainOptions
     uTileSize: { type: "1f", value: o.tileSize },
     uWobble: { type: "1f", value: TERRAIN_BLEND.wobble },
     uWaves: { type: "1f", value: TERRAIN_BLEND.waves },
+    uRoughness: { type: "1f", value: TERRAIN_BLEND.roughness },
+    uGrain: { type: "1f", value: TERRAIN_BLEND.grain },
     uSoft: { type: "1f", value: TERRAIN_BLEND.soft },
   });
   const shader = scene.add.shader(base, 0, 0, o.width * o.tileSize, o.height * o.tileSize);

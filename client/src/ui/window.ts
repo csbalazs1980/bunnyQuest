@@ -4,6 +4,7 @@
 // By default every window sits in a "dock" on the right side of the screen, stacked top to
 // bottom in creation order. Dragging a window takes it out of the dock to float freely.
 // Positions and minimized state are remembered per browser.
+// The window you opened (hotkey or click) or grabbed last is drawn on top of the others.
 
 import { onLanguageChange, t, type TKey } from "../i18n";
 
@@ -33,7 +34,24 @@ export function drawingArea() {
 
 let dock: HTMLDivElement | null = null;
 let windowCount = 0; // creation order = default stacking order in the dock
-let topZ = 10; // the window you grab last is drawn on top of the others
+
+/** All windows, bottom to top: the last one is drawn over the others. */
+const stack: UiWindow[] = [];
+/** Lowest window layer: above the HUD bits (chat 8, banners 5), below Options (20) and Help (21). */
+const Z_BASE = 10;
+
+/** Gives every window its layer from its place in the stack. */
+function restack() {
+  let dockZ = Z_BASE;
+  stack.forEach((w, i) => {
+    const z = Z_BASE + i;
+    w.el.style.zIndex = String(z);
+    // Docked windows sit inside the dock, which is one layer of its own: lift it with its top window
+    if (!w.el.classList.contains("floating")) dockZ = z;
+  });
+  getDock().style.zIndex = String(dockZ);
+}
+
 function getDock() {
   if (!dock) {
     dock = document.createElement("div");
@@ -71,6 +89,7 @@ export class UiWindow {
     this.el.append(bar, this.body);
 
     const d = getDock();
+    stack.push(this);
     this.dockIndex = windowCount++;
     this.el.dataset.dockIndex = String(this.dockIndex);
     d.append(this.el);
@@ -93,7 +112,16 @@ export class UiWindow {
     // Restore what this browser remembered (if anything)
     const saved = load(opts.id);
     if (saved?.floating) this.float(saved.floating.left, saved.floating.top);
-    this.setOpen(saved?.open ?? opts.defaultOpen ?? true);
+    this.setOpen(saved?.open ?? opts.defaultOpen ?? true, false);
+    restack();
+  }
+
+  /** Draws this window over all the others. */
+  bringToFront() {
+    const i = stack.indexOf(this);
+    if (i >= 0) stack.splice(i, 1);
+    stack.push(this);
+    restack();
   }
 
   /** Title and hint in the current language. */
@@ -106,8 +134,10 @@ export class UiWindow {
     return this._open;
   }
 
-  setOpen(open: boolean) {
+  /** Opens or minimizes the window; opening it (by default) also brings it to the front. */
+  setOpen(open: boolean, toFront = true) {
     this._open = open;
+    if (open && toFront) this.bringToFront();
     this.el.classList.toggle("collapsed", !open);
     this.toggleLabel.textContent = `${open ? "[–]" : "[+]"} (${this.opts.hotkey})`;
     this.keepOnScreen();
@@ -123,6 +153,7 @@ export class UiWindow {
     // Re-insert in the original order so the stack looks the same as at the start
     const after = [...d.children].find((c) => Number((c as HTMLElement).dataset.dockIndex) > this.dockIndex);
     d.insertBefore(this.el, after ?? null);
+    restack();
     this.save();
   }
 
@@ -130,6 +161,7 @@ export class UiWindow {
     if (!this.el.classList.contains("floating")) {
       this.el.classList.add("floating");
       document.body.append(this.el);
+      restack();
     }
     this.el.style.left = `${left}px`;
     this.el.style.top = `${top}px`;
@@ -158,7 +190,7 @@ export class UiWindow {
     bar.onpointerdown = (down) => {
       if (down.button !== 0) return;
       down.preventDefault();
-      this.el.style.zIndex = String(++topZ); // bring to front
+      this.bringToFront();
       const r = this.el.getBoundingClientRect();
       let dragging = false;
 

@@ -10,7 +10,7 @@ import { onLanguageChange, t, type TKey } from "../i18n";
 import { RUNE_SHAPES, type RuneId } from "../../../shared/runes";
 import { runePicture } from "./runePicture";
 
-const TOPICS = ["controls", "combat", "magic", "stats"] as const;
+const TOPICS = ["controls", "combat", "magic", "trade", "stats"] as const;
 type Topic = (typeof TOPICS)[number];
 const STORAGE_KEY = "bq-help-topic";
 
